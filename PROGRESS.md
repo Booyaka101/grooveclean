@@ -90,7 +90,16 @@ Ranked by how often they would actually be wanted.
 - **Anything in the brief's non-goals**: no hiss or broadband noise reduction, no wow and
   flutter, no de-hum, no EQ, no GUI, no plugin, no lossy input, no track splitting.
 
-## Publishing
+## Published
 
-Nothing has been published. The wheel, sdist and exe are built and verified locally. PyPI
-upload and the GitHub release are the owner's to run.
+Shipped 2026-09-10 from commit `888678b`.
+
+- <https://github.com/Booyaka101/grooveclean>, public, MIT.
+- <https://pypi.org/project/grooveclean/1.0.0/>, wheel and sdist.
+- Release `v1.0.0` carries `grooveclean-win64.exe` (162,186,199 bytes), the wheel and the sdist.
+- CI was green on all four legs of that exact commit before the tag: ubuntu 3.11, ubuntu 3.13,
+  windows 3.12, and the wheel job. Verified through the commit's check-runs API.
+- Verified after the fact: `pip install grooveclean` into an empty venv, cleaned the 78 excerpt,
+  `max |out + removed - in| = 0`. Same run from the release exe with no Python on the path.
+- The README's raw.githubusercontent image and the three demo MP3s all return 200 with
+  `image/png` and `audio/mpeg`, so the links in the README play rather than download as text.
