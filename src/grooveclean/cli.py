@@ -13,7 +13,7 @@ import sys
 import textwrap
 import time
 from collections.abc import Callable
-from contextlib import ExitStack, suppress
+from contextlib import ExitStack
 from pathlib import Path
 from typing import NoReturn
 
@@ -21,7 +21,8 @@ import click
 import numpy as np
 import torch
 
-from . import __version__, detect, io, report
+from . import __version__, detect, io, report, review
+from .io import sidecars
 from .repair import CONTEXT, METHOD_NAMES, UNREPAIRED, repair
 
 # A CUDA allocation failure is a RuntimeError, not a MemoryError, and reads the same to a user.
@@ -30,14 +31,6 @@ OUT_OF_MEMORY = (MemoryError, torch.cuda.OutOfMemoryError)
 CORE_SECONDS = 61.0
 OVERLAP_SECONDS = 1.0
 DEFAULT_MAX_WIDTH_MS = 20.0
-
-
-def sidecars(dst: Path) -> tuple[Path, Path]:
-    stem = dst.with_suffix("")
-    return (
-        stem.with_name(stem.name + ".removed" + dst.suffix),
-        stem.with_name(stem.name + ".report.json"),
-    )
 
 
 def _process_block(
@@ -121,7 +114,8 @@ def clean_file(
 
     clicks: list[report.Click] = []
     emitted = 0
-    try:
+    # A dry run opened neither output, and they may be a previous real run's.
+    with io.unlink_on_failure(() if report_only else (dst, removed_path)):
         with ExitStack() as stack:
             out_fh = None if report_only else stack.enter_context(io.Writer(dst, info))
             rem_fh = None if report_only else stack.enter_context(io.Writer(removed_path, info))
@@ -167,14 +161,6 @@ def clean_file(
             raise io.AudioError(
                 f"{src}: wrote {emitted} of {info.frames} frames; the block seams did not line up"
             )
-    except BaseException:
-        # A half-written side and its difference file look exactly like a finished pair.
-        # Whatever went wrong is the interesting error, so a failed tidy-up stays quiet.
-        # A dry run opened neither, and they may be a previous real run's output.
-        for path in () if report_only else (dst, removed_path):
-            with suppress(OSError):
-                path.unlink(missing_ok=True)
-        raise
 
     built = report.build(
         input_path=str(src),
@@ -442,6 +428,197 @@ def batch(
     click.echo(f"{len(sources) - failed} of {len(sources)} {verb} into {destination}", err=True)
     if failed:
         sys.exit(1)
+
+
+# --------------------------------------------------------------------------- review
+
+
+def selection_options(fn: Callable) -> Callable:
+    """The three ways of naming repairs, shared by audit and revert."""
+    options = (
+        click.option(
+            "--clicks",
+            metavar="LIST",
+            help="Click numbers from the audit table, like 3,17,204 or 12-18.",
+        ),
+        click.option(
+            "--between",
+            metavar="START-END",
+            help="Every repair in a stretch of the side, like 1:32-1:40.",
+        ),
+        click.option(
+            "--wider-than",
+            metavar="MS",
+            type=click.FloatRange(0.0, 1000.0),
+            help="Every repair longer than this many milliseconds.",
+        ),
+        click.option(
+            "--confidence-below",
+            metavar="P",
+            type=click.FloatRange(0.0, 1.0),
+            help="Every repair the detector was less sure than this about.",
+        ),
+    )
+    for option in reversed(options):
+        fn = option(fn)
+    return fn
+
+
+def _selected(cleaned: Path, **asked: str | float | None) -> tuple[review.Pair, list[int]]:
+    try:
+        pair = review.open_pair(cleaned)
+        chosen = review.select(
+            pair.clicks,
+            rate=pair.cleaned.samplerate,
+            indices=asked["clicks"],
+            between=asked["between"],
+            wider_than_ms=asked["wider_than"],
+            confidence_below=asked["confidence_below"],
+        )
+    except (io.AudioError, review.ReviewError) as exc:
+        _fail(str(exc))
+    if not chosen:
+        _fail(
+            f"{cleaned}: no repairs here match "
+            f"(its report lists {pair.report['totals']['count']:,} clicks)"
+        )
+    return pair, chosen
+
+
+@main.command(short_help="Hear what a run took out.")
+@click.argument("cleaned", type=click.Path(path_type=Path))
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Base name for the pair. Defaults to CLEANED with .audit in the name.",
+)
+@click.option(
+    "--top",
+    default=20,
+    show_default=True,
+    type=click.IntRange(0),
+    help="How many repairs to include. 0 takes every one that matched.",
+)
+@click.option(
+    "--sort",
+    "order",
+    default="removed",
+    show_default=True,
+    type=click.Choice(list(review.SORT_KEYS)),
+    help="Which to take first: the loudest thing removed, the widest span, the least "
+    "confident, or simply the earliest.",
+)
+@click.option(
+    "--context-ms",
+    default=250.0,
+    show_default=True,
+    type=click.FloatRange(0.0, 10000.0),
+    help="Music to keep either side of each repair.",
+)
+@selection_options
+def audit(
+    cleaned: Path,
+    output: Path | None,
+    top: int,
+    order: str,
+    context_ms: float,
+    clicks: str | None,
+    between: str | None,
+    wider_than: float | None,
+    confidence_below: float | None,
+) -> None:
+    """Cut the repairs in CLEANED out into two short files, before and after.
+
+    The two are the same length sample for sample, so playing one against the other is an
+    instant A/B on the work rather than a hunt through the whole side. The table names the
+    click number behind every excerpt, which is what `grooveclean revert --clicks` takes.
+    """
+    asked = dict(
+        clicks=clicks, between=between, wider_than=wider_than, confidence_below=confidence_below
+    )
+    pair, chosen = _selected(cleaned, **asked)
+    base = Path(output) if output else io.sidecar(cleaned, ".audit")
+    before_path, after_path = io.sidecar(base, ".before"), io.sidecar(base, ".after")
+    if {before_path.resolve(), after_path.resolve()} & {
+        p.resolve() for p in (cleaned, *io.sidecars(cleaned))
+    }:
+        _fail(f"{base}: that would write over the run being audited; choose another -o")
+    try:
+        rows = review.audit(
+            pair, review.rank(pair.clicks, chosen, order, top), before_path, after_path, context_ms
+        )
+        length = io.probe(before_path).duration_s
+    except (io.AudioError, review.ReviewError) as exc:
+        _fail(str(exc))
+    except OSError as exc:
+        _fail(f"{before_path}: could not be written ({exc})")
+
+    info = pair.cleaned
+    click.echo("excerpt  click        time  ch     width  conf  removed dBFS")
+    for number, index in rows:
+        entry = pair.clicks[index]
+        click.echo(
+            f"{number:7d}  {index + 1:5d}"
+            f"  {review.timestamp(entry['start_sample'], info.samplerate):>10}"
+            f"  {review.channel_name(entry['channel'], info.channels):>2}"
+            f"  {entry['width_samples'] / info.samplerate * 1e3:6.2f}ms"
+            f"  {entry['confidence']:.2f}  {review.dbfs(entry['residual_rms']):>12}"
+        )
+    click.echo(
+        f"{review.plural(len(rows), 'repair')} in {review.plural(rows[-1][0], 'excerpt')}, "
+        f"{_clock(length)} each, written to {before_path.name} and {after_path.name}",
+        err=True,
+    )
+    click.echo("Play them against each other, then put back anything you disagree with:", err=True)
+    click.echo(
+        f"  grooveclean revert {cleaned} -o fixed{cleaned.suffix} --clicks {rows[0][1] + 1}",
+        err=True,
+    )
+
+
+@main.command(short_help="Put chosen repairs back.")
+@click.argument("cleaned", type=click.Path(path_type=Path))
+@click.option("-o", "--output", required=True, type=click.Path(path_type=Path), help="Output file.")
+@selection_options
+def revert(
+    cleaned: Path,
+    output: Path,
+    clicks: str | None,
+    between: str | None,
+    wider_than: float | None,
+    confidence_below: float | None,
+) -> None:
+    """Undo repairs in CLEANED, into OUTPUT with its own difference file and report.
+
+    The audio that goes back is the audio that was there, taken from the difference file
+    rather than guessed at, so a reverted span is the input again to the sample.
+    """
+    asked = dict(
+        clicks=clicks, between=between, wider_than=wider_than, confidence_below=confidence_below
+    )
+    if all(value is None for value in asked.values()):
+        _fail(
+            "say which repairs to put back, with --clicks, --between, --wider-than or "
+            "--confidence-below. Putting all of them back would just give you the file you "
+            "started with."
+        )
+    pair, chosen = _selected(cleaned, **asked)
+    if {p.resolve() for p in (output, *io.sidecars(output))} & {
+        p.resolve() for p in (cleaned, *io.sidecars(cleaned))
+    }:
+        _fail(f"{output}: one of the three outputs is one of the three inputs; choose another -o")
+    try:
+        built = review.revert(pair, chosen, Path(output))
+    except (io.AudioError, review.ReviewError) as exc:
+        _fail(str(exc))
+    except OSError as exc:
+        _fail(f"{output}: could not be written ({exc})")
+    click.echo(
+        f"put back {len(chosen):,} of {pair.report['totals']['count']:,} repairs, "
+        f"{built['totals']['count']:,} still repaired in {output.name}",
+        err=True,
+    )
 
 
 if __name__ == "__main__":

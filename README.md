@@ -2,7 +2,8 @@
 
 Offline declicker for vinyl and 78rpm transfers. It finds clicks with a small trained CNN,
 fills each one by least-squares autoregressive interpolation, and writes three files: the
-cleaned audio, the exact difference, and a JSON report of every click it touched.
+cleaned audio, the exact difference, and a JSON report of every click it touched. Then it
+lets you hear what it took in half a minute and put back anything you disagree with.
 
 ![One click repaired at sample resolution, before and after spectrograms of a 1917 78rpm transfer, and the waveform of everything that was removed](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/before-after.png)
 
@@ -21,7 +22,9 @@ The invariant is exact for integer formats, not approximate:
 OUT.wav + OUT.removed.wav == IN.wav
 ```
 
-That is what the first test group checks, on every bit depth and sample rate it supports.
+That is what the first test group checks, on every bit depth and sample rate it supports. It
+is also what [Check the work](#check-the-work) is built on: because the difference file holds
+the audio that was under every repair, any repair can be put back exactly.
 
 ## Hear it
 
@@ -146,6 +149,52 @@ click, so you can sort the report and go straight to the loudest thing the tool 
 `pct_of_duration` is that count against the file's length in frames, so on a stereo side a
 click that hits both channels is counted twice.
 
+## Check the work
+
+Trusting a declicker means knowing what it took out. Two commands do that, both working off
+the difference file rather than re-running anything.
+
+`audit` cuts the repairs out into two short files, before and after:
+
+```
+grooveclean audit sideA.clean.wav
+```
+
+![grooveclean auditing a cleaned 78 side, then putting two of the repairs back](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/shot-audit.png)
+
+The two files are the same length sample for sample, so loading both into an editor and
+switching between them is an instant A/B. Twenty repairs off a twenty-five minute side come
+out as about thirty seconds of audio, which is the difference between checking the work and
+meaning to. The default twenty are the ones that removed the most energy, because those are
+the likeliest to have been music. Repairs close enough together to share their context are
+merged into one excerpt, so the table can list several clicks against the same number.
+
+`revert` puts chosen repairs back:
+
+```
+grooveclean revert sideA.clean.wav -o sideA.fixed.wav --clicks 511,512
+```
+
+What goes back is what was there. It comes out of the difference file, so a reverted span is
+the input again to the sample rather than a second guess. You get a new cleaned file with its
+own difference file and report, and `out + removed == in` still holds on the new pair, so the
+result can be audited in turn.
+
+| Option | Applies to | What it does |
+| --- | --- | --- |
+| `--clicks` | both | Click numbers from the audit table: `3,17,204` or `12-18`. |
+| `--between` | both | Everything in a stretch of the side: `1:32-1:40`. |
+| `--wider-than` | both | Every repair longer than this many milliseconds. |
+| `--confidence-below` | both | Every repair the detector was less sure than this about. |
+| `--top` | `audit` | How many to include. Default 20. `0` takes every one that matched. |
+| `--sort` | `audit` | Which to take first: `removed`, `width`, `doubt` or `time`. |
+| `--context-ms` | `audit` | Music kept either side of each repair. Default 250. |
+
+Given no selector at all, `audit` considers every repair in the file and `revert` refuses,
+because putting all of them back just gives you the file you started with. If you hear a
+swallowed note at 2:14 in the cleaned side, `--between 2:13-2:15` on `audit` finds whatever
+happened there and the same flag on `revert` undoes it.
+
 ## What it does not do
 
 Deliberately, so that what it does do can be checked:
@@ -233,8 +282,10 @@ or if you want a GUI at all.
 **[Needledropper's Declicker](https://github.com/keithhanlon/NeedledroppersDeclick)** by Keith
 Hanlon is AGPL-3.0, cross-platform, and the closest thing here in spirit: a modern rewrite of the
 classical approach, autoregressive detection over a wavelet decomposition, with a click-by-click
-review GUI so you can audit every repair before you commit it. Nothing in grooveclean gives you
-that. It has no releases yet, so you build it.
+review GUI so you can audit every repair before you commit it. grooveclean answers the same need
+from a terminal rather than a waveform display: `audit` cuts the repairs down to a before/after
+pair you can A/B in half a minute and `revert` puts any of them back exactly. If you would rather
+see every click and decide on each one, use theirs. It has no releases yet, so you build it.
 
 The three have been run head to head on the same audio with the same scoring, and the tables are
 in [`bench/README.md`](bench/README.md). Short version: on damage that can be repaired at all,

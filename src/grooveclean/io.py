@@ -7,8 +7,8 @@ which is what makes `out + removed == in` exact rather than approximate.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -124,7 +124,7 @@ def pad_odd(body: np.ndarray, pre: int, post: int) -> np.ndarray:
     return np.concatenate(parts, axis=0)
 
 
-def _read_at(fh: sf.SoundFile, start: int, count: int, info: Info) -> np.ndarray:
+def read_at(fh: sf.SoundFile, start: int, count: int, info: Info) -> np.ndarray:
     """Read `count` frames from `start`, extending off the file's own edges."""
     n = info.frames
     lo, hi = max(0, start), min(n, start + count)
@@ -148,16 +148,37 @@ class Block:
     pre: int          # context frames before core_start inside `data`
 
 
+@contextmanager
+def unlink_on_failure(paths: Iterable[Path]) -> Iterator[None]:
+    """Tidy away a part-written set, because half a pair looks exactly like a finished one.
+
+    Whatever went wrong is the interesting error, so a failed tidy-up stays quiet.
+    """
+    try:
+        yield
+    except BaseException:
+        for path in paths:
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+        raise
+
+
+@contextmanager
+def open_read(info: Info) -> Iterator[sf.SoundFile]:
+    with _libsndfile(info.path, "cannot be opened"):
+        fh = sf.SoundFile(info.path)
+    with fh:
+        yield fh
+
+
 def read_blocks(info: Info, core_frames: int, overlap_frames: int) -> Iterator[Block]:
     """Stream the file as overlapping blocks so files larger than RAM still work."""
     core_frames = max(1, int(core_frames))
     overlap_frames = max(0, int(overlap_frames))
-    with _libsndfile(info.path, "cannot be opened"):
-        fh = sf.SoundFile(info.path)
-    with fh:
+    with open_read(info) as fh:
         for start in range(0, info.frames, core_frames):
             core_len = min(core_frames, info.frames - start)
-            data = _read_at(fh, start - overlap_frames, overlap_frames * 2 + core_len, info)
+            data = read_at(fh, start - overlap_frames, overlap_frames * 2 + core_len, info)
             yield Block(data=data, core_start=start, core_len=core_len, pre=overlap_frames)
 
 
@@ -249,6 +270,16 @@ def split(original: np.ndarray, repaired: np.ndarray, info: Info) -> tuple[np.nd
         hi = np.minimum(top, original + INT_SCALE)
         out = np.clip(out, lo, hi)
     return out, original - out
+
+
+def sidecar(path: Path, tag: str, suffix: str | None = None) -> Path:
+    """The tag goes before the extension: out.wav plus .removed is out.removed.wav."""
+    stem = path.with_suffix("")
+    return stem.with_name(stem.name + tag + (path.suffix if suffix is None else suffix))
+
+
+def sidecars(dst: Path) -> tuple[Path, Path]:
+    return sidecar(dst, ".removed"), sidecar(dst, ".report", ".json")
 
 
 def audio_files(directory: str | Path) -> list[Path]:

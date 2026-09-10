@@ -20,10 +20,20 @@ after plus removed.
 Both excerpts are cut and their provenance recorded by `train/fetch_test_assets.py`, which
 writes `tests/data/ASSETS.json`.
 
-The two screenshots in the README were made with the sides in hand, not from anything in the
-repo, so `make_screens.py` takes the command to run:
+`make_screens.py` takes the commands to run, because the `clean` and `batch` shots were made
+with real sides in hand rather than with anything in the repo:
 
 ```
 python docs/make_screens.py --out docs/shot-batch.png --cwd ~/transfers \
   -c "grooveclean batch sides -o cleaned --format flac"
+```
+
+`shot-audit.png` is the exception and can be reproduced from what is here. Clean the bundled
+Sousa excerpt into a folder of its own, then run both review commands into one shot:
+
+```
+grooveclean clean tests/data/excerpt78.flac -o /tmp/gcrev/side.wav
+python docs/make_screens.py --out docs/shot-audit.png --cwd /tmp/gcrev \
+  -c "grooveclean audit side.wav --top 6" \
+  -c "grooveclean revert side.wav -o side.fixed.wav --clicks 511,512"
 ```

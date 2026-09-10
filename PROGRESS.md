@@ -1,17 +1,19 @@
 # Progress
 
-Status as of 2026-09-10. Version 1.1.0 is complete and built. This file records what shipped,
+Status as of 2026-09-10. Version 1.2.0 is complete and built. This file records what shipped,
 what was measured, and what was deliberately left out.
 
 ## Shipped
 
 - `src/grooveclean/`: `io` (probe, blocked reads, odd-extension padding, exact integer
   quantisation), `detect` (resample, normalise, impulsiveness, clipping, CNN, hysteresis, span
-  mapping), `repair` (batched LSAR order 64, cubic fallback, gap bridging), `report`, `cli`.
+  mapping), `repair` (batched LSAR order 64, cubic fallback, gap bridging), `report`,
+  `review` (audit excerpts, selectors, exact revert), `cli`.
 - `train/`: `_ia` (archive.org client, split hashing, harvest driver), `harvest_noise`,
   `harvest_clean`, `mix`, `metrics`, `train`, `fetch_test_assets`, `pick_clean_excerpt`,
   `make_credits`.
-- 102 tests in the five groups the brief names, all passing offline with no GPU.
+- 134 tests, the brief's five groups plus a sixth over `audit` and `revert`, all passing
+  offline with no GPU.
 - `dist/grooveclean-1.0.1-py3-none-any.whl` (349 KB, weights included),
   `dist/grooveclean-1.0.1.tar.gz` (5.1 MB), `dist/grooveclean-win64.exe` (155 MB, CPU torch).
   The wheel installs into an empty venv and cleans the bundled 78 with
@@ -59,6 +61,11 @@ nothing for a local impulse test to stand out against. Dropping `--sensitivity` 
 detections back but does not separate the two cleanly. A record with real transient damage on
 it is the job; harsh noise is not, and the README says so.
 
+`audit` and `revert` can only reach what the detector already found. A click it missed is not
+in the report, so no amount of reviewing surfaces it; the lever for that is still
+`--sensitivity`, and a second pass at a higher setting. Reverting is exact on integer formats
+and accurate to float32 rounding on float ones, the same as the run itself.
+
 1.1 buys its quieter default with about 4 dB of headroom on the faintest ticks: at the default
 sensitivity it finds harvested clicks down to roughly 7 dB over the local music level where
 1.0.1 reached about 4 dB. On `bench`'s percussive set that costs 1.5 dB of recovered signal.
@@ -88,7 +95,8 @@ Ranked by how often they would actually be wanted.
   without a test that shows it helps.
 - **Per-side summary of where the damage is.** The report lists spans; it does not say "the
   last four minutes of this side are ten times worse than the first". The report schema is
-  pinned by the brief, so this wants a separate command rather than more keys.
+  pinned by the brief, so this wants a separate command rather than more keys. 1.2's
+  `audit --sort time` is the nearest thing: it shows where the worst of it sits.
 - **Multi-file GPU batching.** `batch` processes files one at a time; a short file leaves the
   GPU mostly idle.
 - **A `--threshold` escape hatch** exposing the raw (enter, leave) hysteresis pair instead of

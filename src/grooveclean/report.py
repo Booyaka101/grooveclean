@@ -19,6 +19,16 @@ class Click:
     repair: str  # "lsar" | "cubic" | "unrepaired"
 
 
+def totals(clicks: list[dict], frames: int) -> dict:
+    """The summary block, over emitted click records rather than the dataclasses."""
+    repaired = sum(c["width_samples"] for c in clicks if c["repair"] != "unrepaired")
+    return {
+        "count": len(clicks),
+        "samples_repaired": repaired,
+        "pct_of_duration": round((repaired / frames * 100.0) if frames else 0.0, 2),
+    }
+
+
 def build(
     *,
     input_path: str,
@@ -27,31 +37,25 @@ def build(
     frames: int,
     clicks: Iterable[Click],
 ) -> dict:
-    clicks = sorted(clicks, key=lambda c: (c.start_sample, c.channel))
-    repaired = sum(c.width_samples for c in clicks if c.repair != "unrepaired")
-    pct = (repaired / frames * 100.0) if frames else 0.0
+    emitted = [
+        {
+            "channel": c.channel,
+            "start_sample": c.start_sample,
+            "end_sample": c.end_sample,
+            "width_samples": c.width_samples,
+            "confidence": round(c.confidence, 4),
+            "residual_rms": round(c.residual_rms, 8),
+            "repair": c.repair,
+        }
+        for c in sorted(clicks, key=lambda c: (c.start_sample, c.channel))
+    ]
     return {
         "input": input_path,
         "sample_rate": sample_rate,
         "channels": channels,
         "duration_s": round(frames / sample_rate, 3) if sample_rate else 0.0,
-        "clicks": [
-            {
-                "channel": c.channel,
-                "start_sample": c.start_sample,
-                "end_sample": c.end_sample,
-                "width_samples": c.width_samples,
-                "confidence": round(c.confidence, 4),
-                "residual_rms": round(c.residual_rms, 8),
-                "repair": c.repair,
-            }
-            for c in clicks
-        ],
-        "totals": {
-            "count": len(clicks),
-            "samples_repaired": repaired,
-            "pct_of_duration": round(pct, 2),
-        },
+        "clicks": emitted,
+        "totals": totals(emitted, frames),
     }
 
 
