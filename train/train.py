@@ -44,6 +44,7 @@ WARMUP = 200
 HI_GRID = 1.0 / (1.0 + np.exp(-np.linspace(-1.0, 7.0, 21)))
 LO_GRID = 1.0 / (1.0 + np.exp(-np.linspace(-4.0, 5.0, 16)))
 FP_PER_MINUTE = 1.0
+F1_TIE = 0.001  # closer than this is a couple of events, not a real difference
 EVAL_CLICKY = 60
 EVAL_CLEAN = 100
 
@@ -125,7 +126,13 @@ def calibrate(
     if not affordable:
         # Nothing meets the budget, so pick the quietest point and let the caller see it.
         return min(scored, key=lambda row: (row[2].fp_per_minute, -row[2].f1))
-    return max(affordable, key=lambda row: row[2].f1)
+    # Event F1 only asks whether a span overlaps a click at all, so it is flat to a few events
+    # across most of the grid and a plain maximum lands anywhere in that plateau, including on
+    # lo == hi with hysteresis switched off. Break the tie on how far the spans actually reach,
+    # which is what decides whether a repair covers the click or half the bar around it.
+    best = max(row[2].f1 for row in affordable)
+    tied = [row for row in affordable if row[2].f1 >= best - F1_TIE]
+    return max(tied, key=lambda row: row[2].sample_f1)
 
 
 def main(argv: list[str] | None = None) -> int:

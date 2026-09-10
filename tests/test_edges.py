@@ -93,14 +93,15 @@ def test_the_same_damage_is_found_at_44k_and_96k(detector, tmp_path):
     """Every window is defined in milliseconds, so the sample rate must not change the answer.
 
     The 44.1 kHz file is the 96 kHz one resampled, so it is the same damage rather than a
-    second draw from the same generator.
+    second draw from the same generator. The clicks sit well clear of the music so the count
+    floor below tests the resampling rather than where the default sensitivity happens to be.
     """
     rng = np.random.default_rng(33)
     data = clean_at(96000, 3.0, seed=33)
     for _ in range(30):
         click = one_click(96000, rng)
         at = int(rng.integers(9600, data.shape[0] - 9600))
-        data[at : at + click.size, 0] += click * 0.35
+        data[at : at + click.size, 0] += click * 0.6
 
     counts = {}
     for rate in (96000, 44100):

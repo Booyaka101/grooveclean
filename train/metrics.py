@@ -42,6 +42,14 @@ def hits(
     return out
 
 
+def covered(starts: np.ndarray, ends: np.ndarray, length: int) -> np.ndarray:
+    """Flatten disjoint spans back into a sample mask."""
+    edges = np.zeros(length + 1, dtype=np.int8)
+    edges[starts] += 1
+    edges[ends] -= 1
+    return np.cumsum(edges[:-1]) > 0
+
+
 @dataclass(slots=True)
 class Score:
     tp: int = 0
@@ -49,6 +57,9 @@ class Score:
     fn: int = 0
     clean_fp: int = 0
     clean_seconds: float = 0.0
+    tp_samples: int = 0
+    fp_samples: int = 0
+    fn_samples: int = 0
 
     @property
     def precision(self) -> float:
@@ -62,6 +73,12 @@ class Score:
     def f1(self) -> float:
         denominator = 2 * self.tp + self.fp + self.fn
         return 2 * self.tp / denominator if denominator else 1.0
+
+    @property
+    def sample_f1(self) -> float:
+        """Event F1 with the spans' extent counted, which event F1 by design ignores."""
+        denominator = 2 * self.tp_samples + self.fp_samples + self.fn_samples
+        return 2 * self.tp_samples / denominator if denominator else 1.0
 
     @property
     def fp_per_minute(self) -> float:
@@ -113,4 +130,9 @@ def evaluate(
         score.tp += int(found.sum())
         score.fn += int((~found).sum())
         score.fp += int((~hits(starts, ends, true_starts, true_ends)).sum())
+        taken = covered(starts, ends, mask.size)
+        real = mask.astype(bool)
+        score.tp_samples += int((taken & real).sum())
+        score.fp_samples += int((taken & ~real).sum())
+        score.fn_samples += int((~taken & real).sum())
     return score

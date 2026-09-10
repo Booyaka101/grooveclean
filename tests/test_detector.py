@@ -69,20 +69,21 @@ def test_sensitivity_moves_the_detector_in_the_right_direction(held_out, detecto
     segments, masks, kinds, rate = held_out
     clicky = [seg for seg, kind in zip(segments, kinds, strict=True) if kind][:12]
     probs = metrics.probabilities(detector, clicky, rate)
-    counts = []
+    # Samples, not spans: turning the knob up widens spans until neighbours merge, so the
+    # span count can fall while strictly more of the record is being repaired.
+    found = []
     for sensitivity in (0.2, 0.5, 0.8):
         hi, lo, gate = detect.thresholds(
             sensitivity, detector.calibration.hi, detector.calibration.lo
         )
         actives = metrics.active_masks(clicky, rate, gate)
-        counts.append(
-            sum(
-                detect.spans(p, a, rate, hi, lo)[0].size
-                for p, a in zip(probs, actives, strict=True)
-            )
-        )
-    assert counts[0] <= counts[1] <= counts[2], counts
-    assert counts[0] < counts[2]
+        repaired = 0
+        for p, a in zip(probs, actives, strict=True):
+            starts, ends, _ = detect.spans(p, a, rate, hi, lo)
+            repaired += int((ends - starts).sum())
+        found.append(repaired)
+    assert found[0] <= found[1] <= found[2], found
+    assert found[0] < found[2]
 
 
 def test_probabilities_do_not_depend_on_the_chunk_boundary(held_out, detector, monkeypatch):

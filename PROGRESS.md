@@ -1,8 +1,7 @@
 # Progress
 
-Status as of 2026-09-10. Version 1.0.0 is complete and built, and has since had a review
-pass over everything a user sees. This file records what shipped, what was measured, and what
-was deliberately left out.
+Status as of 2026-09-10. Version 1.1.0 is complete and built. This file records what shipped,
+what was measured, and what was deliberately left out.
 
 ## Shipped
 
@@ -29,12 +28,18 @@ was deliberately left out.
 
 ## Measured
 
-- Detector, on the held-out synthetic eval: F1 0.989, precision 0.996, recall 0.982, 0.6 false
-  positives per minute of click-free material. 12000 steps, 426,667 harvested clicks over 357
-  clean clips. Settings and figures in `src/grooveclean/weights/detector.json`.
-- Golden: 2,181 clicks on the bundled 1917 transfer, 8.49% of its duration, pinned at 2%.
-- Speed on a 25 minute 96 kHz 24-bit stereo side: 46s on an RTX 4090, 2m55s on an i9-14900K
-  CPU, same 110,392 clicks either way. `out + removed == in` byte exact on that 863 MB file.
+- Detector, on the held-out synthetic eval: F1 0.994, precision 0.999, recall 0.990, no false
+  positives at all in the click-free half. 12000 steps, 426,667 harvested clicks over 357 clean
+  clips. Settings and figures in `src/grooveclean/weights/detector.json`.
+- Golden: 1,184 clicks on the bundled 1917 transfer, 4.47% of its duration, pinned at 2%.
+- Speed on a 25 minute 96 kHz 24-bit stereo side: 44s on an RTX 4090, 2m51s on an i9-14900K
+  CPU. The two devices disagree about one click in 67,647 and about 75 samples in 288 million,
+  which is float32 summing in a different order on a GPU. `out + removed == in` byte exact on
+  that 863 MB file.
+- Head to head against Wave Corrector PE 3.9 and Needledropper's Declicker on 46 files across
+  seven damage families, plus twelve real 78 sides and a speed profile. Tables and method in
+  `bench/README.md`. Broadening the training damage model bought 3 to 5 dB on the families it
+  added and nothing on the family it did not, which is written up rather than buried.
 - Clone check over 186 functions of six lines or more: worst pair 47%, house rule is 60%.
 
 ## Known limits
@@ -43,16 +48,21 @@ The false positive figure is measured on the eval set's click-free half, which i
 kind of material as the rest of it: mostly music sitting on a synthesised surface-noise bed,
 because that is the condition the tool runs in. It is not a claim about every kind of audio.
 
-`train/pick_clean_excerpt.py` measures the other case. Pointed at seventeen arbitrary netlabels
-releases that a plain second-difference screen calls click-free, the detector left eleven of
-them bit-for-bit untouched and removed something from the other six, the worst at a difference
-peak of -8.6 dBFS.
+`grooveclean batch --dry-run` over the held-out clean corpus measures the other case. Pointed
+at forty arbitrary netlabels releases that a plain second-difference screen calls click-free,
+the detector left eighteen of them bit-for-bit untouched, touched under 0.01% of the file on
+fourteen more, and took a measurable amount out of the last eight. The worst touches 0.15% of
+its duration.
 The material where it removes the most is loud, distorted, high-frequency-dense electronic
 music, where the second difference is a tenth of the peak amplitude everywhere and there is
-nothing for a local impulse test to stand out against. Dropping `--sensitivity` to 0.1 cuts
-those detections by six times and still finds 842 clicks on the 78 excerpt, so the knob works,
-but it does not separate the two cleanly. A record with real transient damage on it is the job;
-harsh noise is not, and the README says so.
+nothing for a local impulse test to stand out against. Dropping `--sensitivity` cuts those
+detections back but does not separate the two cleanly. A record with real transient damage on
+it is the job; harsh noise is not, and the README says so.
+
+1.1 buys its quieter default with about 4 dB of headroom on the faintest ticks: at the default
+sensitivity it finds harvested clicks down to roughly 7 dB over the local music level where
+1.0.1 reached about 4 dB. On `bench`'s percussive set that costs 1.5 dB of recovered signal.
+Both are in `bench/README.md` next to what the change bought.
 
 ## The user-facing review pass
 

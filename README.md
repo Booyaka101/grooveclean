@@ -237,11 +237,13 @@ review GUI so you can audit every repair before you commit it. Nothing in groove
 that. It has no releases yet, so you build it.
 
 The three have been run head to head on the same audio with the same scoring, and the tables are
-in [`bench/README.md`](bench/README.md). Short version: grooveclean recovers more of the clean
-signal on every synthetic set, by 8 dB on the sets built from its own click bank and by 4 dB on
-damage models it was never trained on, so about half of that lead is home advantage. On
-destructive damage its margin over Wave Corrector is 1.4 dB and their F1 scores are within 0.005
-of each other. It is also the slowest of the three and the only one that wants a GPU.
+in [`bench/README.md`](bench/README.md). Short version: on damage that can be repaired at all,
+grooveclean recovers 4 to 10 dB more of the clean signal than either of them, at every setting
+either of them exposes, and it disturbs undamaged music 28x less often than Wave Corrector and
+222x less often than Needledropper's at the settings each ships with. The margin is nearly as
+large on a damage model it was never trained on as on the one it was, so most of it is not home
+advantage. On groove damage that loses the music rather than burying it, all three are within
+0.3 dB of doing nothing. It is also the slowest of the three and the only one that wants a GPU.
 
 ## Accuracy
 
@@ -249,8 +251,8 @@ Detection is scored on held-out synthetic mixes built from source recordings the
 never saw. A click counts as found if the detected span overlaps it at all, because a tick two
 samples short at one edge is still a caught tick.
 
-The shipped weights score F1 0.989 on that held-out set, precision 0.996 and recall 0.982, at
-0.6 false positives per minute of click-free music. That click-free half is the same kind of
+The shipped weights score F1 0.994 on that held-out set, precision 0.999 and recall 0.990, with
+no false positives at all in the click-free half. That click-free half is the same kind of
 material as the rest of the set, mostly music sitting on a synthesised surface-noise bed, since
 that is the condition the tool actually runs in. The test suite refuses to pass below F1 0.95 or
 above one false positive per minute, so those numbers are a floor rather than a claim.
@@ -258,12 +260,13 @@ above one false positive per minute, so those numbers are a floor rather than a 
 The training settings that produced them are in
 [`src/grooveclean/weights/detector.json`](src/grooveclean/weights/detector.json).
 
-The other measurement worth having is what it does to music nobody asked it to touch. Pointed
-at seventeen arbitrary netlabels releases that a plain impulse screen calls click-free, it left
-eleven of them bit-for-bit untouched and took something out of the other six. The six are loud,
-distorted, high-frequency-dense electronic tracks where the waveform is jagged everywhere and a
-local impulse test has nothing to stand out against. Lowering `--sensitivity` cuts that back but
-does not separate the two cleanly, so if you are cleaning something that is not a groove
+The other measurement worth having is what it does to music nobody asked it to touch. Pointed at
+forty arbitrary netlabels releases that a plain impulse screen calls click-free, it left eighteen
+of them bit-for-bit untouched, touched under 0.01% of the file on fourteen more, and took a
+measurable amount out of the last eight. The worst case is 0.15% of the duration. Those eight are
+loud, distorted, high-frequency-dense electronic tracks where the waveform is jagged everywhere
+and a local impulse test has nothing to stand out against. Lowering `--sensitivity` cuts that
+back but does not separate the two cleanly, so if you are cleaning something that is not a groove
 transfer, listen to the difference file first.
 
 ## Speed
@@ -273,12 +276,15 @@ On a 25 minute 96 kHz 24-bit stereo side:
 ```
 $ grooveclean clean sideA.wav -o sideA.clean.wav
 sideA.wav  25:00  96000 Hz  2ch
-detected 110,392 clicks (2.80% of duration)
-repaired in 46s on cuda
+detected 67,647 clicks (1.70% of duration)
+repaired in 44s on cuda
 ```
 
-That is an RTX 4090. The same side takes 2m55s with `--device cpu` on an i9-14900K. Both runs
-find the same 110,392 clicks: the device decides where the arithmetic happens, not what comes
+That is an RTX 4090. The same side takes 2m51s with `--device cpu` on an i9-14900K and finds
+67,648 clicks rather than 67,647. Detection is float32 arithmetic and a GPU sums it in a
+different order, so a probability sitting exactly on a threshold can fall either side of it.
+Comparing the two devices' detected masks directly, they differ on 75 samples out of 288
+million. The device decides where the arithmetic happens, and to that tolerance not what comes
 out of it.
 
 ## Running the tests
