@@ -223,9 +223,12 @@ Medians over the twelve sides:
 | Wave Corrector threshold 4 | 2,496 | 1.43% | -56.5 dBFS | 0.924 |
 | Needledropper's sensitivity 0 | 7,725 | 1.68% | -49.6 dBFS | 0.873 |
 
-The ordering matches the `control` set. At the settings each ships with, grooveclean touches
-about half as much of a real side as Wave Corrector and a fifth as much as Needledropper's, and
-takes out 5 to 9 dB less energy doing it.
+The span counts order the same way as the `control` set. At the settings each ships with,
+grooveclean flags a sixth as many spans per minute as Needledropper's and two thirds as many as
+Wave Corrector, and touches under half as many samples as either. Removed energy does not follow:
+it takes out 5.6 dB less than Needledropper's but 2.2 dB more than Wave Corrector, which touches
+twice as many samples to remove less from them. Whether that is Wave Corrector being gentler or
+grooveclean actually catching louder ticks is not something this measurement can settle.
 
 Read the flatness column with care, because it is biased against interpolation. `in - out` over a
 repaired span is the difference between the real music and the predicted music as well as the
@@ -239,7 +242,7 @@ did not.
 
 Pointed at all 40 held-out netlabels releases in the clean corpus, 60 seconds each, at the default
 sensitivity, 18 come out with no clicks detected at all, so the output is the input. Of the other
-22, all but seven touch under 0.01% of the file and the worst touches 0.15%. The ones it touches
+22, all but eight touch under 0.01% of the file and the worst touches 0.15%. The ones it touches
 are loud, distorted, high-frequency-dense electronic tracks where the waveform is jagged
 everywhere and a local impulse test has nothing to stand out against. That is not groove-transfer
 material and grooveclean is not aimed at it, but it is the honest answer to what happens if you

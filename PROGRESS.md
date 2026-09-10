@@ -51,7 +51,7 @@ because that is the condition the tool runs in. It is not a claim about every ki
 `grooveclean batch --dry-run` over the held-out clean corpus measures the other case. Pointed
 at forty arbitrary netlabels releases that a plain second-difference screen calls click-free,
 the detector left eighteen of them bit-for-bit untouched, touched under 0.01% of the file on
-fifteen more, and took a measurable amount out of the last seven. The worst touches 0.15% of
+fourteen more, and took a measurable amount out of the last eight. The worst touches 0.15% of
 its duration.
 The material where it removes the most is loud, distorted, high-frequency-dense electronic
 music, where the second difference is a tenth of the peak amplitude everywhere and there is

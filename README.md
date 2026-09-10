@@ -262,8 +262,8 @@ The training settings that produced them are in
 
 The other measurement worth having is what it does to music nobody asked it to touch. Pointed at
 forty arbitrary netlabels releases that a plain impulse screen calls click-free, it left eighteen
-of them bit-for-bit untouched, touched under 0.01% of the file on fifteen more, and took a
-measurable amount out of the last seven. The worst case is 0.15% of the duration. Those seven are
+of them bit-for-bit untouched, touched under 0.01% of the file on fourteen more, and took a
+measurable amount out of the last eight. The worst case is 0.15% of the duration. Those eight are
 loud, distorted, high-frequency-dense electronic tracks where the waveform is jagged everywhere
 and a local impulse test has nothing to stand out against. Lowering `--sensitivity` cuts that
 back but does not separate the two cleanly, so if you are cleaning something that is not a groove
