@@ -1,8 +1,14 @@
 """Build (noisy, clean, mask) training triples from the two harvested corpora.
 
-A clean netlabels segment gets a synthesised surface-noise bed and a Poisson stream of real
-harvested clicks laid on top. Because the clicks are added rather than found, the mask is
-exact: it is the support of what was added, sample for sample.
+A clean netlabels segment gets a synthesised surface-noise bed and a Poisson stream of damage.
+Because the damage is written rather than found, the mask is exact: it is the support of what
+was written, sample for sample.
+
+Most events are a real harvested click laid on top of the groove, which is what a tick is. A
+quarter are synthesised damped resonances instead, so the detector cannot key on the harvested
+bank's own spectrum, and a fifth replace the groove rather than riding on it, which is what a
+gouge deep enough to lose the wall does. Both were added in 1.1 after a head-to-head showed the
+detector losing most of its lead on damage outside the harvested bank; see bench/README.md.
 
 Everything is randomised over the ranges a real transfer spans. Event rate 0.1 to 200 per
 second, click peak 3 to 30 dB over the local music level, time-stretch, polarity, whether a
@@ -45,6 +51,11 @@ LOWPASS_HZ = (4000.0, 16000.0)
 EVENTS_PER_S = (0.1, 200.0)
 CLICK_OVER_MUSIC_DB = (3.0, 30.0)
 STRETCH = (0.7, 1.6)
+SYNTHETIC_PROBABILITY = 0.25  # events whose shape is generated rather than harvested
+SYNTHETIC_LENGTH = (8, 200)
+SYNTHETIC_HZ = (200.0, 12000.0)
+SYNTHETIC_DECAY = (1.5, 8.0)
+DESTRUCTIVE_PROBABILITY = 0.2  # events that replace the groove instead of riding on it
 BOTH_CHANNELS_PROBABILITY = 0.5
 CHANNEL_RATIO = (0.3, 1.0)
 CHANNEL_SKEW = 3  # samples of arrival difference between the two groove walls
@@ -168,12 +179,18 @@ class Mixer:
         segment: int = SEGMENT,
         channels: int = 2,
         events_per_s: tuple[float, float] = EVENTS_PER_S,
+        synthetic: float = SYNTHETIC_PROBABILITY,
+        destructive: float = DESTRUCTIVE_PROBABILITY,
+        gain_db: tuple[float, float] = CLICK_OVER_MUSIC_DB,
     ):
         self.corpus = corpus
         self.rng = np.random.default_rng(seed)
         self.segment = segment
         self.channels = channels
         self.events_per_s = events_per_s
+        self.synthetic = synthetic
+        self.destructive = destructive
+        self.gain_db = gain_db
 
     def _music(self) -> np.ndarray:
         rng = self.rng
@@ -207,6 +224,23 @@ class Mixer:
         )
         return bed[: self.channels]
 
+    def _shape(self) -> np.ndarray:
+        """One unit-peak damage waveform, usually harvested and sometimes synthesised.
+
+        The harvested bank only holds ticks that these particular transfers produced, so a
+        detector trained on it alone can key on that bank's own spectrum instead of on what
+        makes a click a click.
+        """
+        rng = self.rng
+        if not self.synthetic or rng.random() >= self.synthetic:
+            return self.corpus.clicks[rng.integers(len(self.corpus.clicks))]
+        length = int(rng.integers(*SYNTHETIC_LENGTH))
+        t = np.arange(length)
+        wave = np.sin(
+            2.0 * np.pi * rng.uniform(*SYNTHETIC_HZ) / RATE * t + rng.uniform(0.0, 2.0 * np.pi)
+        ) * np.exp(-t / (length / rng.uniform(*SYNTHETIC_DECAY)))
+        return (wave / np.abs(wave).max()).astype(np.float32)
+
     def _place(self, noisy: np.ndarray, mask: np.ndarray, music: np.ndarray) -> None:
         rng = self.rng
         low, high = self.events_per_s
@@ -214,16 +248,17 @@ class Mixer:
             return
         rate = np.exp(rng.uniform(np.log(low), np.log(high)))
         for _ in range(int(rng.poisson(rate * self.segment / RATE))):
-            click = self.corpus.clicks[rng.integers(len(self.corpus.clicks))]
+            click = self._shape()
             click = _stretch(click, rng.uniform(*STRETCH)) * rng.choice([-1.0, 1.0])
             at = int(rng.integers(self.segment))
-            gain = 10.0 ** (rng.uniform(*CLICK_OVER_MUSIC_DB) / 20.0)
+            gain = 10.0 ** (rng.uniform(*self.gain_db) / 20.0)
 
             lead = int(rng.integers(self.channels))
             ratios = np.zeros(self.channels)
             ratios[lead] = 1.0
             if rng.random() < BOTH_CHANNELS_PROBABILITY:
                 ratios[ratios == 0.0] = rng.uniform(*CHANNEL_RATIO)
+            destructive = bool(self.destructive) and rng.random() < self.destructive
 
             for ch, ratio in enumerate(ratios):
                 if ratio <= 0.0:
@@ -237,20 +272,13 @@ class Mixer:
                 if amplitude <= 0.0:
                     continue
                 piece = click[lo - at - skew : hi - at - skew] * amplitude
-                self._damage(noisy, mask, ch, lo, hi, piece)
-
-    def _damage(
-        self,
-        noisy: np.ndarray,
-        mask: np.ndarray,
-        ch: int,
-        lo: int,
-        hi: int,
-        piece: np.ndarray,
-    ) -> None:
-        """Write one click into the segment. Its own method so a bench can swap the model."""
-        noisy[ch, lo:hi] += piece
-        mask[ch, lo:hi] |= piece != 0.0
+                if destructive:
+                    # The stylus lost the wall, so what was there is gone rather than buried.
+                    noisy[ch, lo:hi] = piece
+                    mask[ch, lo:hi] = True
+                else:
+                    noisy[ch, lo:hi] += piece
+                    mask[ch, lo:hi] |= piece != 0.0
 
     def draw(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         rng = self.rng

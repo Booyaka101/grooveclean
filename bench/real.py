@@ -55,7 +55,7 @@ def measure(src: Path, got: Path, upto: float) -> dict:
         pad = max(16, hi - lo)
         lo2, hi2 = max(0, lo - pad // 2), min(n, hi + pad // 2)
         if hi2 - lo2 >= 16:
-            flats.append(flatness(took[lo2:hi2, 0] + took[lo2:hi2, 1], upto))
+            flats.append(flatness(took[lo2:hi2].sum(axis=1), upto))
     energy = float((took**2).sum())
     return {
         "spans_per_min": starts.size / (n / rate / 60),
@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--src", type=Path, default=Path("D:/tmp/bakeoff/real"))
     ap.add_argument("--out", type=Path, default=Path("D:/tmp/bakeoff/out"))
-    ap.add_argument("--tools", nargs="+", default=["real-gc-s35", "real-nd-s0", "real-wc-t3"])
+    ap.add_argument("--tools", nargs="+", default=["gc-s35", "gc-s50", "nd-s0", "wc-t3", "wc-t4"])
     a = ap.parse_args(argv)
 
     for src in sorted(a.src.glob("*.wav")):

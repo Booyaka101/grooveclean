@@ -53,9 +53,9 @@
     }
   ],
   "golden": {
-    "clicks": 2181,
-    "samples_repaired": 81509,
-    "pct_of_duration": 8.49,
+    "clicks": 1184,
+    "samples_repaired": 42895,
+    "pct_of_duration": 4.47,
     "tolerance": 0.02
   }
 }

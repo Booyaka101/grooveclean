@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.1.0 - 2026-09-10
+
+New detector weights and a much quieter default operating point. Nothing about the command
+line, the file formats or the output layout changed, so a 1.0.1 script still runs.
+
+- Retrained on a broader damage model. A quarter of the injected clicks are now synthesised
+  damped resonances rather than ticks harvested from real transfers, and a fifth of all damage
+  replaces the samples underneath it instead of adding to them. Against the head-to-head
+  corpus that is worth 3.1 dB on resonant damage and 4.6 dB on destructive damage, taking
+  detection F1 on those two families from 0.65 and 0.72 to 0.96.
+- The threshold calibration now breaks ties on sample-level F1 rather than on how wide the
+  hysteresis band is. Event F1 only asks whether a detected span touches a click, so it is
+  flat across a quarter of the search grid and the tie-break is what actually picks the
+  shipped thresholds. The old rule chose a very low leave threshold, which let spans run on
+  through noisy 78 material; the worst real side in the bench went from 22.7% of its samples
+  touched to 6.2%.
+- Held out scores moved from F1 0.989 at 0.6 false positives per minute to F1 0.994 with none
+  at all. On 120 seconds of undamaged music at the default sensitivity it now disturbs 76
+  frames per minute where 1.0.1 disturbed 236.
+- The cost is about 4 dB of headroom on the faintest ticks. At the default sensitivity 1.1
+  finds harvested clicks down to roughly 7 dB over the local music level where 1.0.1 reached
+  about 4 dB. Raise `--sensitivity` if you were relying on that.
+- `bench/` gained two held-out damage families the mixer does not generate, twelve whole real
+  78 sides, a speed profile of all three tools and a measurement of what each does to music
+  that is already clean. The honest result is written up in `bench/README.md`: broadening the
+  training damage model bought accuracy on the damage that was added and did not generalise
+  past it.
+- The golden click count on the bundled 1917 Sousa excerpt is now 1,184 rather than 2,181,
+  and the figures and screenshots in `docs/` are regenerated from the new weights.
+
 ## 1.0.1 - 2026-09-10
 
 Documentation only. The code is unchanged from 1.0.0.
