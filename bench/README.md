@@ -196,8 +196,8 @@ nowhere to put it, because the interpolator cannot reconstruct 20 ms of music it
 The cost is about 1.5 dB on `percussive`, and roughly 4 dB of headroom on faint ticks: at the
 default sensitivity 1.1 finds harvested ticks down to about 7 dB over the local music level where
 1.0.1 reached about 4 dB. In exchange the default operating point got much quieter, 76 frames per
-minute disturbed on `control` against 1.0.1's 236, with better SNR on four of the five sets
-anything can repair.
+minute disturbed on `control` against 1.0.1's 236, with better SNR on three of the five sets
+anything can repair and worse on the other two.
 
 ## Real transfers
 
@@ -275,9 +275,10 @@ Where the time goes, on a 45 second 96 kHz stereo side with the GPU synchronised
 
 There is no hot spot to fix. The largest single lever is running the network in bfloat16 rather
 than float32, worth 2.2x on the detect stage and 1.2x on the whole run, and it changes the
-answer: 1,246 of 53,406 flagged samples flip. That would cost the property that a CPU run and a
-CUDA run find the same clicks, which is worth more than 20% to anyone checking a result or
-filing a bug. Not taken. If you need 100x, use Needledropper's, and this document says so.
+answer: 1,246 of 53,406 flagged samples flip. Today a CPU run and a CUDA run agree to within
+one click in 67,000 and 75 samples in 288 million, which is worth more than 20% to anyone
+checking a result or filing a bug. Not taken. If you need 100x, use Needledropper's, and this
+document says so.
 
 ## What I would and would not claim from this
 
@@ -285,13 +286,13 @@ Supported. On damage that can be repaired at all, grooveclean recovers 4 to 10 d
 clean signal than either competitor, at every setting either of them exposes, and it disturbs
 undamaged music 28x to 222x less at the settings each ships with. That margin is 7.7 dB on
 `scratch`, which nothing here was trained on, against 9.7 dB on `general`, which it was, so most
-of it is not home advantage. Needledropper's README's own caveat about percussive material is real and measurable,
-and so is Wave Corrector's recall on the same set.
+of it is not home advantage. Needledropper's README's own caveat about percussive material is
+real and measurable, and so is Wave Corrector's recall on the same set.
 
 Supported, and the honest correction to the 1.0.1 version of this document. Adding damage models
 to training buys accuracy on those damage models and does not generalise past them. `resonant`
 and `gouge` improved by 3 to 5 dB once they were written into the mixer, and `scratch`, which was
-not, did not move at all. Anyone reading a benchmark where the author also chose the damage
+not, moved 0.2 dB the wrong way. Anyone reading a benchmark where the author also chose the damage
 should assume the same about every number in it, including these.
 
 Not supported. Anything about how these sound: SNR against a synthetic truth is not a listening
