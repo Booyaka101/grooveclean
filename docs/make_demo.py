@@ -1,7 +1,8 @@
-"""Render docs/demo/*.mp3 from the bundled 78 excerpt.
+"""Render docs/demo/*.mp3 from tests/data/demo78.flac.
 
-Ten seconds of a 1917 acoustic transfer, before and after, plus the difference file so you
-can hear exactly what was taken out.
+Ten seconds of a 1925 acoustic transfer, before and after, plus the difference file so you
+can hear exactly what was taken out. All three get the same gain, so before still equals
+after plus removed.
 
     python docs/make_demo.py
 
@@ -58,9 +59,15 @@ def peak_dbfs(x: np.ndarray) -> float:
 def main(argv: list[str] | None = None) -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--input", type=Path, default=root / "tests/data/excerpt78.flac")
+    ap.add_argument("--input", type=Path, default=root / "tests/data/demo78.flac")
     ap.add_argument("--out-dir", type=Path, default=root / "docs/demo")
     ap.add_argument("--quality", type=float, default=0.2, help="0 is best, 1 is smallest.")
+    ap.add_argument(
+        "--peak-dbfs",
+        type=float,
+        default=-1.0,
+        help="Level the loudest of the three is brought to. One gain is shared by all three.",
+    )
     args = ap.parse_args(argv)
 
     if "MP3" not in sf.available_formats():
@@ -77,10 +84,20 @@ def main(argv: list[str] | None = None) -> int:
     def take(path: Path) -> np.ndarray:
         return to_demo_rate(sf.read(str(path), dtype="float32", always_2d=True)[0], rate)
 
+    tracks = {
+        "1-before.mp3": take(args.input),
+        "2-after.mp3": take(cleaned),
+        "3-removed.mp3": take(cli.sidecars(cleaned)[0]),
+    }
+    # One gain for all three, not one each: normalising them separately would break
+    # before == after + removed, which is the thing the difference file is there to show.
+    loudest = max(float(np.max(np.abs(x))) for x in tracks.values())
+    gain = 10.0 ** (args.peak_dbfs / 20.0) / max(loudest, 1e-9)
+
     print(f"{report['totals']['count']:,} clicks, {report['totals']['pct_of_duration']}% repaired")
-    write(args.out_dir / "1-before.mp3", take(args.input), args.quality)
-    write(args.out_dir / "2-after.mp3", take(cleaned), args.quality)
-    write(args.out_dir / "3-removed.mp3", take(cli.sidecars(cleaned)[0]), args.quality)
+    print(f"one shared gain of {20.0 * np.log10(gain):+.1f} dB on all three")
+    for name, x in tracks.items():
+        write(args.out_dir / name, x * gain, args.quality)
 
     for path in (cleaned, *cli.sidecars(cleaned)):
         path.unlink(missing_ok=True)

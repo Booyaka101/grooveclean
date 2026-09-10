@@ -25,17 +25,26 @@ That is what the first test group checks, on every bit depth and sample rate it 
 
 ## Hear it
 
-Ten seconds of the bundled 1917 Sousa transfer. The third one is the difference file, and
-it is the one worth your time: it should be all ticks and no music.
+Ten seconds of a 1925 Banner side, the Hollywood Dance Orchestra's *Do You Care*. The
+archive lists the disc as worn and it sounds like it. The detector never saw this transfer
+in training or in scoring.
 
 - [before](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/demo/1-before.mp3)
 - [after](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/demo/2-after.mp3)
 - [what was removed](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/demo/3-removed.mp3)
 
-A README cannot embed a player, so those links point straight at the raw files, which most
-browsers play in a tab. Cloning the repo and opening `docs/demo/` works too. They are MP3s
-because everything can play one; grooveclean itself refuses lossy input, and the encode
-happened after the cleaning, not before.
+Listen for the ticks rather than the hiss. Ninety-five ticks jump more than 20 dB above the
+music in those ten seconds and none of them survive, which takes the peak from -0.7 to -11.9
+dBFS. Broadband surface noise is deliberately left alone, so the bed still sounds like a 78,
+and before and after land within half a decibel of each other overall. Below 1 kHz the music
+measures 0.1 dB different. The third file is the difference, and it is the one worth your
+time: all ticks, no music.
+
+All three share one gain, so before still equals after plus removed. A README cannot embed a
+player, so those links point straight at the raw files, which most browsers play in a tab.
+Cloning the repo and opening `docs/demo/` works too. They are MP3s because everything can
+play one; grooveclean itself refuses lossy input, and the encode happened after the cleaning,
+not before.
 
 ## Install
 
@@ -289,7 +298,8 @@ Click waveforms and clean music come from the Internet Archive's
 everything that went into the shipped model is in [`CREDITS.md`](CREDITS.md).
 
 The bundled test excerpt is the Imperial Marimba Band's 1917 recording of Sousa's *The Stars
-and Stripes Forever*, in the public domain in the United States.
+and Stripes Forever*. The demo is the Hollywood Dance Orchestra's *Do You Care*, issued on
+Banner in 1925. Both are in the public domain in the United States.
 
 ## Licence
 

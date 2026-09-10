@@ -21,10 +21,12 @@ was deliberately left out.
 - README, CHANGELOG, CREDITS, LICENSE, `.github/workflows/ci.yml`.
 - `docs/`: three generators and what they make. `make_figure.py` draws the README hero (one
   click at sample resolution, before and after spectrograms, and the waveform of the whole
-  difference file). `make_demo.py` renders ten seconds of the bundled 78 to
+  difference file). `make_demo.py` renders ten seconds of a worn 1925 side to
   `docs/demo/*.mp3`, before, after and removed, so a visitor can hear it without installing
-  anything. `make_screens.py` runs a command for real and draws its captured output, which is
-  where the two terminal shots in the README come from.
+  anything. That side is a second bundled excerpt, held out of training and scoring, chosen
+  because its ticks are audible where the golden Sousa excerpt's dense crackle is subtle.
+  `make_screens.py` runs a command for real and draws its captured output, which is where the
+  two terminal shots in the README come from.
 
 ## Measured
 
@@ -34,8 +36,7 @@ was deliberately left out.
 - Golden: 2,181 clicks on the bundled 1917 transfer, 8.49% of its duration, pinned at 2%.
 - Speed on a 25 minute 96 kHz 24-bit stereo side: 46s on an RTX 4090, 2m55s on an i9-14900K
   CPU, same 110,392 clicks either way. `out + removed == in` byte exact on that 863 MB file.
-- Clone check over 170 functions of six lines or more: nothing at or over 50%, house
-  rule is 60%.
+- Clone check over 186 functions of six lines or more: worst pair 47%, house rule is 60%.
 
 ## Known limits
 
