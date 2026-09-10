@@ -8,7 +8,9 @@ clear of any click, so no repaired span is ever written twice or cut in half.
 
 from __future__ import annotations
 
+import shutil
 import sys
+import textwrap
 import time
 from collections.abc import Callable
 from contextlib import ExitStack, suppress
@@ -233,8 +235,16 @@ def _detector(device: str, weights: str | None) -> detect.Detector:
     return detect.Detector.load(weights, resolved)
 
 
+def _wrap(message: str, indent: str) -> str:
+    """A paragraph on a terminal, one unbroken line down a pipe so grep still works."""
+    if not sys.stderr.isatty():
+        return message
+    width = max(40, min(shutil.get_terminal_size((88, 24)).columns, 96) - 8)
+    return textwrap.fill(message, width, subsequent_indent=indent)
+
+
 def _fail(message: str) -> NoReturn:
-    raise click.ClickException(message)
+    raise click.ClickException(_wrap(message, "       "))
 
 
 # --------------------------------------------------------------------------- commands
@@ -245,13 +255,23 @@ DEVICE_CHOICE = click.Choice(["auto", "cuda", "cpu"], case_sensitive=False)
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, prog_name="grooveclean")
 def main() -> None:
-    """Offline declicker for vinyl and 78rpm transfers."""
+    """Offline declicker for vinyl and 78rpm transfers.
+
+    Finds the ticks and pops, interpolates over them, and writes what it took out to a
+    second file so you can listen to it and check nothing musical went with them.
+    """
 
 
-@main.command()
+@main.command(short_help="Declick one file.")
 @click.argument("source", type=click.Path(path_type=Path))
 @click.option("-o", "--output", required=True, type=click.Path(path_type=Path), help="Output file.")
-@click.option("--sensitivity", default=0.5, show_default=True, type=click.FloatRange(0.0, 1.0))
+@click.option(
+    "--sensitivity",
+    default=0.5,
+    show_default=True,
+    type=click.FloatRange(0.0, 1.0),
+    help="0 finds only the obvious damage, 1 is aggressive. 0.5 is the trained point.",
+)
 @click.option(
     "--max-width-ms",
     default=DEFAULT_MAX_WIDTH_MS,
@@ -259,7 +279,13 @@ def main() -> None:
     type=click.FloatRange(0.01, 1000.0),
     help="Longest span to interpolate. Anything wider is reported unrepaired.",
 )
-@click.option("--device", default="auto", show_default=True, type=DEVICE_CHOICE)
+@click.option(
+    "--device",
+    default="auto",
+    show_default=True,
+    type=DEVICE_CHOICE,
+    help="Where to run the detector. Auto takes the GPU when there is one.",
+)
 @click.option("--weights", type=click.Path(path_type=Path), help="Override the bundled detector.")
 @click.option(
     "--dry-run",
@@ -307,7 +333,7 @@ def clean(
     )
 
 
-@main.command()
+@main.command(short_help="Declick a folder of files.")
 @click.argument("directory", type=click.Path(path_type=Path))
 @click.option(
     "-o",
@@ -315,14 +341,27 @@ def clean(
     type=click.Path(path_type=Path),
     help="Where to write results. Defaults to a cleaned/ folder inside DIRECTORY.",
 )
-@click.option("--sensitivity", default=0.5, show_default=True, type=click.FloatRange(0.0, 1.0))
+@click.option(
+    "--sensitivity",
+    default=0.5,
+    show_default=True,
+    type=click.FloatRange(0.0, 1.0),
+    help="0 finds only the obvious damage, 1 is aggressive. 0.5 is the trained point.",
+)
 @click.option(
     "--max-width-ms",
     default=DEFAULT_MAX_WIDTH_MS,
     show_default=True,
     type=click.FloatRange(0.01, 1000.0),
+    help="Longest span to interpolate. Anything wider is reported unrepaired.",
 )
-@click.option("--device", default="auto", show_default=True, type=DEVICE_CHOICE)
+@click.option(
+    "--device",
+    default="auto",
+    show_default=True,
+    type=DEVICE_CHOICE,
+    help="Where to run the detector. Auto takes the GPU when there is one.",
+)
 @click.option("--weights", type=click.Path(path_type=Path), help="Override the bundled detector.")
 @click.option(
     "--dry-run",
@@ -390,7 +429,7 @@ def batch(
             )
         except (io.AudioError, detect.DetectorError, OSError, *OUT_OF_MEMORY) as exc:
             failed += 1
-            click.echo(f"{prefix}: skipped, {exc}", err=True)
+            click.echo(_wrap(f"{prefix}: skipped, {exc}", "  "), err=True)
             continue
         totals = built["totals"]
         click.echo(

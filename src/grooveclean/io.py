@@ -76,10 +76,10 @@ def probe(path: str | Path) -> Info:
         step, scale = 0.0, 1.0
     else:
         raise LossyInputError(
-            f"{path}: {info.format}/{info.subtype} is lossy or compressed-sample audio. "
-            "grooveclean only accepts uncompressed PCM or FLAC (WAV, FLAC, AIFF, W64, CAF; "
-            "16/24/32-bit or float). Decoding an MP3 smears every click across the frame it "
-            "sits in, so a declicker cannot tell the click from the codec's ringing."
+            f"{path}: {info.format}/{info.subtype} is lossy audio. grooveclean reads "
+            "uncompressed PCM and FLAC only (WAV, FLAC, AIFF, W64, CAF, RF64, at 16, 24 or "
+            "32-bit or float). A lossy codec smears each click across the frame it sits in, "
+            "so a declicker cannot tell the click from the codec's own ringing."
         )
     if info.frames == 0:
         raise AudioError(f"{path}: file contains no audio frames")
@@ -198,6 +198,8 @@ class Writer:
 
 
 CONTAINERS = {
+    ".wav": "WAV",
+    ".wave": "WAV",
     ".flac": "FLAC",
     ".aif": "AIFF",
     ".aiff": "AIFF",
@@ -212,7 +214,10 @@ OUTPUT_FORMATS = ("wav", "flac", "aiff", "w64", "caf", "rf64")
 
 def format_for(path: Path, info: Info) -> str:
     """The libsndfile format for an output path, refusing a container that cannot hold it."""
-    fmt = CONTAINERS.get(path.suffix.lower(), "WAV")
+    fmt = CONTAINERS.get(path.suffix.lower())
+    if fmt is None:
+        known = ", ".join("." + name for name in OUTPUT_FORMATS)
+        raise AudioError(f"{path}: cannot tell the format from that name; use one of {known}")
     if info.subtype not in sf.available_subtypes(fmt):
         raise AudioError(f"{path}: {fmt} cannot hold {info.subtype} audio; write a .wav instead")
     return fmt

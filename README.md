@@ -4,7 +4,7 @@ Offline declicker for vinyl and 78rpm transfers. It finds clicks with a small tr
 fills each one by least-squares autoregressive interpolation, and writes three files: the
 cleaned audio, the exact difference, and a JSON report of every click it touched.
 
-![Spectrogram of a 1917 78rpm transfer before and after cleaning](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/before-after.png)
+![One click repaired at sample resolution, before and after spectrograms of a 1917 78rpm transfer, and the waveform of everything that was removed](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/before-after.png)
 
 MIT licensed, no account, no upload, nothing phones home. Runs on a GPU if you have one and
 falls back to the CPU if you do not.
@@ -22,6 +22,20 @@ OUT.wav + OUT.removed.wav == IN.wav
 ```
 
 That is what the first test group checks, on every bit depth and sample rate it supports.
+
+## Hear it
+
+Ten seconds of the bundled 1917 Sousa transfer. The third one is the difference file, and
+it is the one worth your time: it should be all ticks and no music.
+
+- [before](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/demo/1-before.mp3)
+- [after](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/demo/2-after.mp3)
+- [what was removed](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/demo/3-removed.mp3)
+
+A README cannot embed a player, so those links point straight at the raw files, which most
+browsers play in a tab. Cloning the repo and opening `docs/demo/` works too. They are MP3s
+because everything can play one; grooveclean itself refuses lossy input, and the encode
+happened after the cleaning, not before.
 
 ## Install
 
@@ -57,11 +71,15 @@ grooveclean clean sideA.wav -o sideA.clean.wav
 That writes `sideA.clean.wav`, `sideA.clean.removed.wav` and `sideA.clean.report.json`, and
 prints a summary to stderr so you can pipe the audio around without it getting in the way.
 
+![grooveclean cleaning one 78 side and the three files it wrote](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/shot-clean.png)
+
 Clean a folder:
 
 ```
 grooveclean batch ./transfers -o ./cleaned
 ```
+
+![grooveclean cleaning a folder of four 78 sides](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/shot-batch.png)
 
 One file failing does not stop the run. The exit code is non-zero if any file was skipped.
 `--skip-existing` leaves anything that already has a report in the output folder alone, which
@@ -81,6 +99,8 @@ match the input, whatever the container.
 | `--device` | `auto` | `cuda`, `cpu`, or `auto`. Asking for `cuda` without a GPU warns and uses the CPU. |
 | `--dry-run` | off | Write only the report. Survey a stack of transfers without spending the disk. |
 | `--weights` | bundled | Point at your own trained detector. |
+| `--skip-existing` | off | `batch` only. Leave files that already have a report in the output folder. |
+| `--format` | `wav` | `batch` only. Container for the cleaned files: `wav`, `flac`, `aiff`, `w64`, `caf` or `rf64`. |
 
 Sensitivity is the knob to reach for first. If quiet passages come out with holes in them,
 drop it to 0.3 and compare the difference files. If dense crackle is surviving, push it to
@@ -202,6 +222,7 @@ The shipped weights score F1 0.989 on that held-out set, precision 0.996 and rec
 material as the rest of the set, mostly music sitting on a synthesised surface-noise bed, since
 that is the condition the tool actually runs in. The test suite refuses to pass below F1 0.95 or
 above one false positive per minute, so those numbers are a floor rather than a claim.
+
 The training settings that produced them are in
 [`src/grooveclean/weights/detector.json`](src/grooveclean/weights/detector.json).
 
@@ -213,7 +234,9 @@ local impulse test has nothing to stand out against. Lowering `--sensitivity` cu
 does not separate the two cleanly, so if you are cleaning something that is not a groove
 transfer, listen to the difference file first.
 
-Speed, on a 25 minute 96 kHz 24-bit stereo side:
+## Speed
+
+On a 25 minute 96 kHz 24-bit stereo side:
 
 ```
 $ grooveclean clean sideA.wav -o sideA.clean.wav

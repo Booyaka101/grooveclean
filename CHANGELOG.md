@@ -11,6 +11,8 @@ First release.
 - `--dry-run` on both commands writes the report only, for surveying a stack of transfers.
 - `--skip-existing` on `batch` picks up where an interrupted run stopped.
 - `--format` on `batch` chooses the output container. WAV, FLAC, AIFF, W64, CAF or RF64.
+- On `clean` the container follows the `-o` extension. A name it cannot map to a format
+  is refused rather than quietly written as a WAV.
 - Detection by a dilated 1-D CNN trained on real clicks harvested from 78rpm transfers,
   mixed into click-free netlabels music.
 - Repair by least-squares autoregressive interpolation of order 64, batched so a whole side

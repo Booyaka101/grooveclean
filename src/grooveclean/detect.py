@@ -304,7 +304,7 @@ class Detector:
         try:
             blob = torch.load(str(path), map_location="cpu", weights_only=True)
         except Exception as exc:
-            raise DetectorError(f"{path}: cannot load detector weights ({exc})") from exc
+            raise DetectorError(f"{path}: cannot be read as a PyTorch checkpoint") from exc
         try:
             model = ClickCNN(**blob["config"])
             model.load_state_dict(blob["state_dict"])

@@ -1,7 +1,8 @@
 # Progress
 
-Status as of 2026-09-10. Version 1.0.0 is complete and built. This file records what shipped,
-what was measured, and what was deliberately left out.
+Status as of 2026-09-10. Version 1.0.0 is complete and built, and has since had a review
+pass over everything a user sees. This file records what shipped, what was measured, and what
+was deliberately left out.
 
 ## Shipped
 
@@ -11,10 +12,19 @@ what was measured, and what was deliberately left out.
 - `train/`: `_ia` (archive.org client, split hashing, harvest driver), `harvest_noise`,
   `harvest_clean`, `mix`, `metrics`, `train`, `fetch_test_assets`, `pick_clean_excerpt`,
   `make_credits`.
-- 100 tests in the five groups the brief names, all passing offline with no GPU.
-- `dist/grooveclean-1.0.0-py3-none-any.whl` (348 KB, weights included),
-  `dist/grooveclean-1.0.0.tar.gz` (5.4 MB), `dist/grooveclean-win64.exe` (155 MB, CPU torch).
-- README, CHANGELOG, CREDITS, LICENSE, `.github/workflows/ci.yml`, before/after spectrogram.
+- 101 tests in the five groups the brief names, all passing offline with no GPU.
+- `dist/grooveclean-1.0.0-py3-none-any.whl` (349 KB, weights included),
+  `dist/grooveclean-1.0.0.tar.gz` (5.1 MB), `dist/grooveclean-win64.exe` (155 MB, CPU torch).
+  All three rebuilt after the review pass. The wheel installs into an empty venv and cleans
+  the bundled 78 with `max |out + removed - in| = 0`; the exe does the same with no Python on
+  the path.
+- README, CHANGELOG, CREDITS, LICENSE, `.github/workflows/ci.yml`.
+- `docs/`: three generators and what they make. `make_figure.py` draws the README hero (one
+  click at sample resolution, before and after spectrograms, and the waveform of the whole
+  difference file). `make_demo.py` renders ten seconds of the bundled 78 to
+  `docs/demo/*.mp3`, before, after and removed, so a visitor can hear it without installing
+  anything. `make_screens.py` runs a command for real and draws its captured output, which is
+  where the two terminal shots in the README come from.
 
 ## Measured
 
@@ -24,8 +34,8 @@ what was measured, and what was deliberately left out.
 - Golden: 2,181 clicks on the bundled 1917 transfer, 8.49% of its duration, pinned at 2%.
 - Speed on a 25 minute 96 kHz 24-bit stereo side: 46s on an RTX 4090, 2m55s on an i9-14900K
   CPU, same 110,392 clicks either way. `out + removed == in` byte exact on that 863 MB file.
-- Clone check over 147 functions of five statements or more: highest pair 43%, two batch CLI
-  tests. Nothing at or over 50%, house rule is 60%.
+- Clone check over 158 functions of five statements or more: nothing at or over 50%, house
+  rule is 60%.
 
 ## Known limits
 
@@ -43,6 +53,20 @@ nothing for a local impulse test to stand out against. Dropping `--sensitivity` 
 those detections by six times and still finds 842 clicks on the 78 excerpt, so the knob works,
 but it does not separate the two cleanly. A record with real transient damage on it is the job;
 harsh noise is not, and the README says so.
+
+## The user-facing review pass
+
+Every option now carries help text; `--sensitivity`, `--device` and `batch --max-width-ms`
+had none. Both commands carry a `short_help` so the group listing does not truncate
+mid-sentence. Long error messages wrap into a paragraph on a terminal and stay on one line
+down a pipe, the way the progress line already behaved. Pointing `--weights` at the wrong
+file used to print six lines of PyTorch's `weights_only` essay; it now says the file is not a
+checkpoint it can read.
+
+One real bug came out of it. `clean -o side.xyz` guessed WAV for any extension it did not
+recognise and wrote a WAV under a name nothing would open, and `-o side` with no extension
+did the same. Unknown extensions are refused now, with the six containers listed, and
+`test_an_output_name_with_no_known_format_is_refused` covers it.
 
 ## Deliberately not in 1.0.0
 

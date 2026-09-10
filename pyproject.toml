@@ -70,8 +70,8 @@ include = [
   "CREDITS.md",
   "pyproject.toml",
 ]
-# The held-out evaluation audio is a fifteen megabyte test fixture. Clone the repo for it.
-exclude = ["tests/data/detector_eval.flac", "tests/data/detector_eval.npz"]
+# Big fixtures and the README's audio demo. Clone the repo for those.
+exclude = ["tests/data/detector_eval.flac", "tests/data/detector_eval.npz", "docs/demo"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

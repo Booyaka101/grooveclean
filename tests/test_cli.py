@@ -46,7 +46,8 @@ def test_lossy_input_is_refused_with_an_explanation(run, tmp_path):
     assert result.exit_code != 0
     assert "Traceback" not in result.output
     assert "lossy" in result.output.lower()
-    assert "mp3" in result.output.lower() or "grooveclean only accepts" in result.output
+    assert "mp3" in result.output.lower()
+    assert "uncompressed PCM and FLAC" in result.output
 
 
 def test_a_missing_file_says_so(run, tmp_path):
@@ -276,6 +277,19 @@ def test_a_container_that_cannot_hold_the_input_is_refused(run, tmp_path):
         result = run("clean", source, "-o", tmp_path / "o.flac", *extra)
         assert result.exit_code != 0
         assert "FLAC cannot hold FLOAT audio" in result.output
+
+
+def test_an_output_name_with_no_known_format_is_refused(run, transfers, tmp_path):
+    """Guessing WAV for -o side.xyz writes a file nothing will open by its name."""
+    source = transfers["mono_44k_16"].path
+    for name in ("o.xyz", "o"):
+        result = run("clean", source, "-o", tmp_path / name)
+        assert result.exit_code != 0
+        assert "cannot tell the format from that name" in result.output
+        assert not (tmp_path / name).exists()
+
+    assert run("clean", source, "-o", tmp_path / "o.wave").exit_code == 0
+    assert sf.info(str(tmp_path / "o.wave")).format == "WAV"
 
 
 def test_a_truncated_file_says_where_it_stops(run, transfers, tmp_path):
