@@ -223,6 +223,26 @@ published method, written from the Janssen and Vaseghi formulation and batched f
 no gwc code is used, and gwc is GPL-2.0-or-later while this is MIT. If you want a waveform
 editor with a click-by-click undo, and you are on Linux, use gwc.
 
+**[Wave Corrector PE](https://www.wavecor.co.uk/)** is freeware, Windows only, closed source and
+still the default answer in most vinyl-transfer threads. It is a whole restoration suite rather
+than a declicker: batch processing, de-hiss, hum filters, track splitting, CD burning. Its
+declicker is quiet and cautious, and at its lowest thresholds it disturbs undamaged music less
+than anything else measured here. Use it if you want one program that does the whole transfer,
+or if you want a GUI at all.
+
+**[Needledropper's Declicker](https://github.com/keithhanlon/NeedledroppersDeclick)** by Keith
+Hanlon is AGPL-3.0, cross-platform, and the closest thing here in spirit: a modern rewrite of the
+classical approach, autoregressive detection over a wavelet decomposition, with a click-by-click
+review GUI so you can audit every repair before you commit it. Nothing in grooveclean gives you
+that. It has no releases yet, so you build it.
+
+The three have been run head to head on the same audio with the same scoring, and the tables are
+in [`bench/README.md`](bench/README.md). Short version: grooveclean recovers more of the clean
+signal on every synthetic set, by 8 dB on the sets built from its own click bank and by 4 dB on
+damage models it was never trained on, so about half of that lead is home advantage. On
+destructive damage its margin over Wave Corrector is 1.4 dB and their F1 scores are within 0.005
+of each other. It is also the slowest of the three and the only one that wants a GPU.
+
 ## Accuracy
 
 Detection is scored on held-out synthetic mixes built from source recordings the training run

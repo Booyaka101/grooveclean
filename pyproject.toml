@@ -84,7 +84,7 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 100
-src = ["src", "train", "tests"]
+src = ["src", "train", "tests", "bench"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]

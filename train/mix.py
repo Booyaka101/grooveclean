@@ -237,8 +237,20 @@ class Mixer:
                 if amplitude <= 0.0:
                     continue
                 piece = click[lo - at - skew : hi - at - skew] * amplitude
-                noisy[ch, lo:hi] += piece
-                mask[ch, lo:hi] |= piece != 0.0
+                self._damage(noisy, mask, ch, lo, hi, piece)
+
+    def _damage(
+        self,
+        noisy: np.ndarray,
+        mask: np.ndarray,
+        ch: int,
+        lo: int,
+        hi: int,
+        piece: np.ndarray,
+    ) -> None:
+        """Write one click into the segment. Its own method so a bench can swap the model."""
+        noisy[ch, lo:hi] += piece
+        mask[ch, lo:hi] |= piece != 0.0
 
     def draw(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         rng = self.rng
