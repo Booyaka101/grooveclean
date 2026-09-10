@@ -13,11 +13,10 @@ was deliberately left out.
   `harvest_clean`, `mix`, `metrics`, `train`, `fetch_test_assets`, `pick_clean_excerpt`,
   `make_credits`.
 - 102 tests in the five groups the brief names, all passing offline with no GPU.
-- `dist/grooveclean-1.0.0-py3-none-any.whl` (349 KB, weights included),
-  `dist/grooveclean-1.0.0.tar.gz` (5.1 MB), `dist/grooveclean-win64.exe` (155 MB, CPU torch).
-  All three rebuilt after the review pass. The wheel installs into an empty venv and cleans
-  the bundled 78 with `max |out + removed - in| = 0`; the exe does the same with no Python on
-  the path.
+- `dist/grooveclean-1.0.1-py3-none-any.whl` (349 KB, weights included),
+  `dist/grooveclean-1.0.1.tar.gz` (5.1 MB), `dist/grooveclean-win64.exe` (155 MB, CPU torch).
+  The wheel installs into an empty venv and cleans the bundled 78 with
+  `max |out + removed - in| = 0`; the exe does the same with no Python on the path.
 - README, CHANGELOG, CREDITS, LICENSE, `.github/workflows/ci.yml`.
 - `docs/`: three generators and what they make. `make_figure.py` draws the README hero (one
   click at sample resolution, before and after spectrograms, and the waveform of the whole
@@ -104,3 +103,23 @@ Shipped 2026-09-10 from commit `888678b`.
   `max |out + removed - in| = 0`. Same run from the release exe with no Python on the path.
 - The README's raw.githubusercontent image and the three demo MP3s all return 200 with
   `image/png` and `audio/mpeg`, so the links in the README play rather than download as text.
+
+### 1.0.1
+
+Shipped 2026-09-10 from commit `1109a82`, a documentation-only patch. Nothing under `src/`
+changed, so the wheel's code is identical to 1.0.0.
+
+Cut rather than left unreleased because PyPI renders `README.md` as the project page, and
+that page still called the demo the 1917 Sousa transfer while the MP3s it links are served
+from `main` and already played the 1925 side. The listing contradicted its own audio.
+
+- <https://pypi.org/project/grooveclean/1.0.1/>, wheel and sdist.
+- Release `v1.0.1` carries `grooveclean-win64.exe` (162,186,688 bytes), the wheel and the sdist.
+- CI green on all four legs of that exact commit before the tag, verified through the commit's
+  check-runs API. The rebase merge produced a new SHA on main, so CI was re-checked on it
+  rather than trusting the branch's result.
+- Verified after the fact: `pip install grooveclean` into an empty venv gave 1.0.1, cleaned the
+  78 excerpt to the golden 2,181 clicks with `max |out + removed - in| = 0`. The release exe
+  did the same with no Python on the path.
+- The published sdist and wheel metadata both carry the new demo text and neither carries the
+  old line.
