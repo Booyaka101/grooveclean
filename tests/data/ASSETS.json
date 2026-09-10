@@ -1,0 +1,45 @@
+{
+  "assets": [
+    {
+      "file": "excerpt78.flac",
+      "identifier": "78_the-stars-and-stripes-forever-march_imperial-marimba-band-j-p-sousa_gbia0549589a",
+      "source_file": "The Stars and Stripes Forever Marc - IMPERIAL MARIMBA BAND.flac",
+      "start_s": 40.0,
+      "seconds": 10.0,
+      "sample_rate": 96000,
+      "channels": 2,
+      "bytes": 3450923,
+      "peak_dbfs": -11.1,
+      "title": "The Stars and Stripes Forever March",
+      "creator": [
+        "IMPERIAL MARIMBA BAND",
+        "J. P. Sousa"
+      ],
+      "date": "1917",
+      "licenseurl": null,
+      "why": "1917 acoustic 78, in the public domain in the US. The golden click count."
+    },
+    {
+      "file": "clean_excerpt.flac",
+      "identifier": "ArchivalSelections007",
+      "source_file": "07_Quaking_Steps.flac",
+      "start_s": 30.0,
+      "seconds": 10.0,
+      "sample_rate": 44100,
+      "channels": 2,
+      "bytes": 584691,
+      "peak_dbfs": -2.0,
+      "title": "Mystified- Eldritch Steps [Archival Selections 007]",
+      "creator": "Thomas Park",
+      "date": "2017-09-11",
+      "licenseurl": "http://creativecommons.org/publicdomain/mark/1.0/",
+      "why": "netlabels release, screened for impulses window by window before being pinned."
+    }
+  ],
+  "golden": {
+    "clicks": 2181,
+    "samples_repaired": 81509,
+    "pct_of_duration": 8.49,
+    "tolerance": 0.02
+  }
+}

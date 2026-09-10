@@ -1,0 +1,85 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "grooveclean"
+version = "1.0.0"
+description = "Offline declicker for vinyl and 78rpm transfers, with a difference file and a report"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Chris Bosch", email = "cbosch101@gmail.com" }]
+keywords = [
+    "audio",
+    "restoration",
+    "declick",
+    "declicker",
+    "vinyl",
+    "78rpm",
+    "shellac",
+    "crackle",
+    "lsar",
+    "interpolation",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Editors",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "click>=8.1",
+    "numpy>=1.24",
+    "soundfile>=0.12",
+    "torch>=2.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/Booyaka101/grooveclean"
+Repository = "https://github.com/Booyaka101/grooveclean"
+Issues = "https://github.com/Booyaka101/grooveclean/issues"
+Changelog = "https://github.com/Booyaka101/grooveclean/blob/main/CHANGELOG.md"
+
+[project.scripts]
+grooveclean = "grooveclean.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/grooveclean"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src",
+  "tests",
+  "train",
+  "docs",
+  "packaging",
+  "README.md",
+  "LICENSE",
+  "CHANGELOG.md",
+  "CREDITS.md",
+  "pyproject.toml",
+]
+# The held-out evaluation audio is a fifteen megabyte test fixture. Clone the repo for it.
+exclude = ["tests/data/detector_eval.flac", "tests/data/detector_eval.npz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "train", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
