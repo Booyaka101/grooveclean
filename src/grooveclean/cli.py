@@ -170,7 +170,8 @@ def clean_file(
     except BaseException:
         # A half-written side and its difference file look exactly like a finished pair.
         # Whatever went wrong is the interesting error, so a failed tidy-up stays quiet.
-        for path in (dst, removed_path):
+        # A dry run opened neither, and they may be a previous real run's output.
+        for path in () if report_only else (dst, removed_path):
             with suppress(OSError):
                 path.unlink(missing_ok=True)
         raise

@@ -12,7 +12,7 @@ was deliberately left out.
 - `train/`: `_ia` (archive.org client, split hashing, harvest driver), `harvest_noise`,
   `harvest_clean`, `mix`, `metrics`, `train`, `fetch_test_assets`, `pick_clean_excerpt`,
   `make_credits`.
-- 101 tests in the five groups the brief names, all passing offline with no GPU.
+- 102 tests in the five groups the brief names, all passing offline with no GPU.
 - `dist/grooveclean-1.0.0-py3-none-any.whl` (349 KB, weights included),
   `dist/grooveclean-1.0.0.tar.gz` (5.1 MB), `dist/grooveclean-win64.exe` (155 MB, CPU torch).
   All three rebuilt after the review pass. The wheel installs into an empty venv and cleans
@@ -34,7 +34,7 @@ was deliberately left out.
 - Golden: 2,181 clicks on the bundled 1917 transfer, 8.49% of its duration, pinned at 2%.
 - Speed on a 25 minute 96 kHz 24-bit stereo side: 46s on an RTX 4090, 2m55s on an i9-14900K
   CPU, same 110,392 clicks either way. `out + removed == in` byte exact on that 863 MB file.
-- Clone check over 158 functions of five statements or more: nothing at or over 50%, house
+- Clone check over 170 functions of six lines or more: nothing at or over 50%, house
   rule is 60%.
 
 ## Known limits

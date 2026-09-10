@@ -246,6 +246,24 @@ def test_dry_run_agrees_with_the_real_thing(transfers, detector, tmp_path):
     assert dry["clicks"] == wet["clicks"]
 
 
+def test_a_dry_run_that_fails_leaves_an_earlier_run_alone(
+    transfers, detector, tmp_path, monkeypatch
+):
+    """A dry run opens no audio, so its tidy-up must not delete a real run's output."""
+    out = tmp_path / "side.wav"
+    cli.clean_file(transfers["mono_44k_16"].path, out, detector=detector)
+    keep = [path.read_bytes() for path in (out, sidecars(out)[0])]
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli, "_process_block", explode)
+    with pytest.raises(RuntimeError):
+        cli.clean_file(transfers["mono_44k_16"].path, out, detector=detector, report_only=True)
+
+    assert [path.read_bytes() for path in (out, sidecars(out)[0])] == keep
+
+
 def test_batch_dry_run_says_surveyed(run, transfers, tmp_path):
     source_dir = folder_of(transfers, tmp_path, "mono_44k_16")
     result = run("batch", source_dir, "-o", tmp_path / "done", "--dry-run")

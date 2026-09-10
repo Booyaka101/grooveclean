@@ -133,6 +133,9 @@ drop it to 0.3 and compare the difference files. If dense crackle is surviving, 
 the file to fit a model around, and `unrepaired` for a span wider than `--max-width-ms`, which
 is reported but left in the audio. `residual_rms` is the level of what was removed at that
 click, so you can sort the report and go straight to the loudest thing the tool touched.
+`samples_repaired` counts every repaired sample across all channels, and
+`pct_of_duration` is that count against the file's length in frames, so on a stereo side a
+click that hits both channels is counted twice.
 
 ## What it does not do
 
