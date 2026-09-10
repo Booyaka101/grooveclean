@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.2.0 - 2026-09-10
+
+Two new commands for checking a run and undoing parts of it. Nothing about `clean`, `batch`,
+the detector or the file formats changed, so a 1.1.0 script still runs and produces the same
+audio.
+
+- `grooveclean audit CLEANED` cuts the repairs out into two short files, before and after,
+  aligned sample for sample so playing one against the other is an A/B on the work. Twenty
+  repairs off a long side come out as about thirty seconds of audio. It prints a table of
+  what is in them: click number, position, channel, width, confidence and how much was
+  removed. Repairs close enough together to share their context merge into one excerpt.
+- `grooveclean revert CLEANED -o FIXED` puts chosen repairs back, taking the audio from the
+  difference file rather than guessing at it, so a reverted span is the input again to the
+  sample. It writes a new cleaned file, difference file and report, and `out + removed == in`
+  holds on the new pair.
+- Both take `--clicks 3,17,204` or `12-18`, `--between 1:32-1:40`, `--wider-than MS` and
+  `--confidence-below P`, in any combination. `audit` also takes `--top`, `--sort` and
+  `--context-ms`. `revert` refuses to run with no selector.
+- The report is unchanged, and a report written by 1.0.0 still works with both commands.
+
 ## 1.1.0 - 2026-09-10
 
 New detector weights and a much quieter default operating point. Nothing about the command

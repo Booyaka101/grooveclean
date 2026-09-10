@@ -13,6 +13,7 @@ Needs Pillow:
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import subprocess
 import sys
@@ -56,12 +57,15 @@ def transcript(commands: list[str], cwd: Path, prompt: str) -> list[tuple[str, s
         done = subprocess.run(
             shlex.split(command),
             cwd=cwd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
             encoding="utf-8",
             errors="replace",
+            # One pipe and no buffering, so the picture keeps a terminal's own order.
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
-        body = (done.stderr + done.stdout).replace("\r", "").rstrip("\n")
+        body = done.stdout.replace("\r", "").rstrip("\n")
         if body:
             lines.extend(("output", line) for line in body.split("\n"))
         lines.append(("blank", ""))
