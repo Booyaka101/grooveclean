@@ -71,7 +71,12 @@ include = [
   "pyproject.toml",
 ]
 # Big fixtures and the README's audio demo. Clone the repo for those.
-exclude = ["tests/data/detector_eval.flac", "tests/data/detector_eval.npz", "docs/demo"]
+exclude = [
+  "tests/data/detector_eval.flac",
+  "tests/data/detector_eval.npz",
+  "tests/data/demo78.flac",
+  "docs/demo",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

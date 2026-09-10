@@ -34,6 +34,22 @@
       "date": "2017-09-11",
       "licenseurl": "http://creativecommons.org/publicdomain/mark/1.0/",
       "why": "netlabels release, screened for impulses window by window before being pinned."
+    },
+    {
+      "file": "demo78.flac",
+      "identifier": "78_do-you-care-me-amas_hollywood-dance-orchestra_gbia0072369b",
+      "source_file": "Do You Care (?Me amas?) - Hollywood Dance Orchestra.flac",
+      "start_s": 25.0,
+      "seconds": 10.0,
+      "sample_rate": 96000,
+      "channels": 2,
+      "bytes": 4279252,
+      "peak_dbfs": -0.27,
+      "title": "Do You Care (?Me amas?)",
+      "creator": "Hollywood Dance Orchestra",
+      "date": "1925-09-05",
+      "licenseurl": null,
+      "why": "1925 dance band side the detector never saw, from a disc the archive lists as worn. Its ticks stand 20 dB or more above the music, where the Sousa excerpt's crackle is dense and even, so docs/demo is audible rather than subtle."
     }
   ],
   "golden": {

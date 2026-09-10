@@ -43,6 +43,16 @@ ASSETS = [
         "start": 60.0,
         "why": "netlabels release under a Creative Commons public domain dedication.",
     },
+    {
+        "name": "demo78",
+        "identifier": "78_do-you-care-me-amas_hollywood-dance-orchestra_gbia0072369b",
+        "start": 25.0,
+        "why": (
+            "1925 dance band side the detector never saw, from a disc the archive lists as "
+            "worn. Its ticks stand 20 dB or more above the music, where the Sousa excerpt's "
+            "crackle is dense and even, so docs/demo is audible rather than subtle."
+        ),
+    },
 ]
 
 
