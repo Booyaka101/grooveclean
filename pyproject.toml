@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "grooveclean"
-version = "1.0.0"
+version = "1.0.1"
 description = "Offline declicker for vinyl and 78rpm transfers, with a difference file and a report"
 readme = "README.md"
 requires-python = ">=3.11"

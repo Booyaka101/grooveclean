@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.1 - 2026-09-10
+
+Documentation only. The code is unchanged from 1.0.0.
+
+- The before and after demo now uses a 1925 Banner side rather than the 1917 Sousa excerpt
+  the golden test is pinned to. The Sousa side is dense continuous crackle, and grooveclean
+  removes impulses while leaving broadband hiss, so before and after measured 2.4 dB apart
+  in 4-16 kHz and sounded the same. On the new side 95 ticks stand more than 20 dB above the
+  music and none survive, which drops the peak from -0.7 to -11.9 dBFS while the music below
+  1 kHz moves 0.11 dB.
+- `docs/make_demo.py` normalises the loudest of the three files to -1 dBFS and applies that
+  one gain to all three, so `before == after + removed` still holds.
+- `tests/data/demo78.flac` is the new excerpt, held out of training and scoring, cut and
+  credited by `train/fetch_test_assets.py`. It is excluded from the sdist.
+
 ## 1.0.0 - 2026-09-10
 
 First release.
