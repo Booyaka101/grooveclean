@@ -141,3 +141,24 @@ from `main` and already played the 1925 side. The listing contradicted its own a
   did the same with no Python on the path.
 - The published sdist and wheel metadata both carry the new demo text and neither carries the
   old line.
+
+### 1.2.0
+
+Shipped 2026-09-11 from commit `dab9be5`, which merged PR #6. The click count moved from
+2,181 to 1,184 on the same excerpt between 1.0.1 and here, because 1.1.0 retrained the
+detector and lowered the default operating point.
+
+- <https://pypi.org/project/grooveclean/1.2.0/>, wheel and sdist.
+- Release `v1.2.0` carries `grooveclean-win64.exe` (162,202,553 bytes), the wheel and the sdist.
+- CI green on all four legs of that exact commit before the tag, verified through the commit's
+  check-runs API.
+- Verified after the fact: `pip install grooveclean` into an empty venv gave 1.2.0, cleaned the
+  78 excerpt to 1,184 clicks with `max |out + removed - in| = 0`, and `audit` and `revert` both
+  ran against the result. The release exe did the same with no Python on the path, and its
+  output is bit-for-bit identical to the wheel's.
+
+There is no 1.1.0 on PyPI. It was built, verified and tagged nowhere, then superseded by 1.2.0
+within the day. Publishing a version nobody could already be running, that was already replaced,
+would have meant an irreversible upload for no one's benefit. The changelog keeps its 1.1.0
+entry, so the history is intact even though the download never existed. Those artefacts are
+parked outside the repo at `D:/tmp/gc-dist-1.1.0/`.
