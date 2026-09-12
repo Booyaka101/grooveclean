@@ -1,6 +1,6 @@
 # Progress
 
-Status as of 2026-09-10. Version 1.2.0 is complete and built. This file records what shipped,
+Status as of 2026-09-12. Version 1.2.1 is complete and built. This file records what shipped,
 what was measured, and what was deliberately left out.
 
 ## Shipped
@@ -12,7 +12,7 @@ what was measured, and what was deliberately left out.
 - `train/`: `_ia` (archive.org client, split hashing, harvest driver), `harvest_noise`,
   `harvest_clean`, `mix`, `metrics`, `train`, `fetch_test_assets`, `pick_clean_excerpt`,
   `make_credits`.
-- 134 tests, the brief's five groups plus a sixth over `audit` and `revert`, all passing
+- 142 tests, the brief's five groups plus a sixth over `audit` and `revert`, all passing
   offline with no GPU.
 - `dist/grooveclean-1.0.1-py3-none-any.whl` (349 KB, weights included),
   `dist/grooveclean-1.0.1.tar.gz` (5.1 MB), `dist/grooveclean-win64.exe` (155 MB, CPU torch).

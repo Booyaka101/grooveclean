@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -190,3 +192,62 @@ def test_revert_refuses_to_write_over_its_own_input(run, cleaned):
 
     assert result.exit_code != 0
     assert "choose another -o" in result.output
+
+
+@pytest.fixture()
+def broken(cleaned, tmp_path):
+    """A cleaned set whose report can be edited to whatever a hand-edited one might hold."""
+
+    def make(**changes) -> Path:
+        report = json.loads(io.sidecars(cleaned)[1].read_text(encoding="utf-8"))
+        entry = dict(report["clicks"][0])
+        for field in changes.pop("drop", ()):
+            entry.pop(field)
+        entry.update(changes)
+        report["clicks"] = [entry]
+        out = tmp_path / "edited.wav"
+        shutil.copy(cleaned, out)
+        shutil.copy(io.sidecars(cleaned)[0], io.sidecars(out)[0])
+        io.sidecars(out)[1].write_text(json.dumps(report), encoding="utf-8")
+        return out
+
+    return make
+
+
+@pytest.mark.parametrize(
+    ("changes", "says"),
+    [
+        ({"start_sample": 10**9, "end_sample": 10**9 + 100}, "outside the file"),
+        ({"start_sample": -20, "end_sample": -10}, "outside the file"),
+        ({"start_sample": 9000, "end_sample": 8000}, "outside the file"),
+        ({"channel": 7}, "channel 7"),
+        ({"start_sample": "nine"}, "not a whole number"),
+        ({"drop": ("residual_rms",)}, "missing fields"),
+    ],
+)
+def test_a_report_that_cannot_describe_the_audio_is_refused(run, broken, changes, says):
+    result = run("audit", broken(**changes))
+
+    assert result.exit_code != 0
+    assert says in result.output
+    assert "Traceback" not in result.output
+
+
+def test_reviewing_a_run_that_found_nothing_says_so(run, broken):
+    edited = broken()
+    report = json.loads(io.sidecars(edited)[1].read_text(encoding="utf-8"))
+    report["clicks"] = []
+    report["totals"] = {"count": 0, "samples_repaired": 0, "pct_of_duration": 0.0}
+    io.sidecars(edited)[1].write_text(json.dumps(report), encoding="utf-8")
+
+    result = run("audit", edited)
+
+    assert result.exit_code != 0
+    assert "the run found no clicks" in result.output
+
+
+def test_clean_points_at_audit_when_it_repaired_something(run, transfers, tmp_path):
+    result = run("clean", transfers["stereo_44k_24"].path, "-o", tmp_path / "out.wav")
+
+    assert result.exit_code == 0
+    assert "grooveclean audit" in result.output

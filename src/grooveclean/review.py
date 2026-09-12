@@ -73,9 +73,38 @@ def open_pair(cleaned: str | Path) -> Pair:
         clicks = built["clicks"]
         if not isinstance(clicks, list) or built["sample_rate"] != info.samplerate:
             raise KeyError("clicks")
+        for position, entry in enumerate(clicks, start=1):
+            check_click(entry, position, info)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ReviewError(f"{report_path}: not a report for {cleaned.name} ({exc})") from exc
     return Pair(cleaned=info, removed=difference, report=built)
+
+
+# What every click record has to carry for a span to be locatable in the audio.
+CLICK_FIELDS = ("channel", "start_sample", "end_sample", "width_samples", "confidence",
+                "residual_rms", "repair")
+
+
+def check_click(entry: dict, position: int, info: io.Info) -> None:
+    """Reject a record that cannot describe a span of this file, before anything indexes with it.
+
+    A report is a plain JSON file a user can edit, and a bad number in one reaches numpy as an
+    index rather than as a complaint.
+    """
+    if not isinstance(entry, dict) or any(field not in entry for field in CLICK_FIELDS):
+        raise ValueError(f"click {position} is missing fields")
+    start, end, channel = entry["start_sample"], entry["end_sample"], entry["channel"]
+    if not all(isinstance(value, int) for value in (start, end, channel)):
+        raise ValueError(f"click {position} has a position that is not a whole number")
+    if not 0 <= channel < info.channels:
+        raise ValueError(
+            f"click {position} is on channel {channel} of a {info.channels}-channel file"
+        )
+    if not 0 <= start < end <= info.frames:
+        raise ValueError(
+            f"click {position} covers samples {start} to {end}, outside the file's 0 to "
+            f"{info.frames}"
+        )
 
 
 def parse_indices(text: str, total: int) -> set[int]:

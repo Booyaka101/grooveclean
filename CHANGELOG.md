@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.1 - 2026-09-12
+
+A hardening pass over the two review commands. No change to the detector, the repair, the
+file formats or any output a 1.2.0 run produced.
+
+- `audit` and `revert` now check every click record in the report before using it as an index.
+  A report naming a channel the file does not have, a span past the end of it, a reversed
+  span, a position that is not a whole number, or a record missing a field used to raise a
+  raw traceback or, worse, to be silently accepted: `revert` would report putting a repair
+  back while doing nothing. Each case now names the click number and what is wrong with it.
+- Reviewing a run that found no clicks says so, rather than reporting that no repairs matched
+  the selection.
+- `clean` ends by showing the `audit` command for what it just wrote, so the way to check a
+  run is visible from the run itself.
+
 ## 1.2.0 - 2026-09-10
 
 Two new commands for checking a run and undoing parts of it. Nothing about `clean`, `batch`,
