@@ -318,6 +318,8 @@ def clean(
     click.echo(
         _summarise(built, time.perf_counter() - started, detector.device.type, verb), err=True
     )
+    if not dry_run and built["totals"]["count"]:
+        click.echo(f"hear what came out:  grooveclean audit {output}", err=True)
 
 
 @main.command(short_help="Declick a folder of files.")
@@ -478,9 +480,11 @@ def _selected(cleaned: Path, **asked: str | float | None) -> tuple[review.Pair, 
     except (io.AudioError, review.ReviewError) as exc:
         _fail(str(exc))
     if not chosen:
+        total = pair.report["totals"]["count"]
         _fail(
-            f"{cleaned}: no repairs here match "
-            f"(its report lists {pair.report['totals']['count']:,} clicks)"
+            f"{cleaned}: nothing to review, the run found no clicks in it"
+            if not total
+            else f"{cleaned}: no repairs here match (its report lists {total:,} clicks)"
         )
     return pair, chosen
 
