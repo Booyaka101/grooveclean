@@ -1,6 +1,6 @@
 # Progress
 
-Status as of 2026-09-12. Version 1.2.1 is complete and built. This file records what shipped,
+Status as of 2026-09-12. Version 1.2.1 is published. This file records what shipped,
 what was measured, and what was deliberately left out.
 
 ## Shipped
@@ -162,3 +162,21 @@ within the day. Publishing a version nobody could already be running, that was a
 would have meant an irreversible upload for no one's benefit. The changelog keeps its 1.1.0
 entry, so the history is intact even though the download never existed. Those artefacts are
 parked outside the repo at `D:/tmp/gc-dist-1.1.0/`.
+
+### 1.2.1
+
+Shipped 2026-09-12 from commit `6ba4413`, which merged PR #7. A hardening pass over `audit` and
+`revert` only. The detector, the repair and every output a 1.2.0 run produced are untouched, so
+the excerpt still gives 1,184 clicks.
+
+- <https://pypi.org/project/grooveclean/1.2.1/>, wheel and sdist.
+- Release `v1.2.1` carries `grooveclean-win64.exe` (162,202,831 bytes), the wheel and the sdist.
+- CI green on all four legs of that exact commit before the tag, verified through the commit's
+  check-runs API.
+- Verified after the fact: `pip install grooveclean` into an empty venv gave 1.2.1, cleaned the
+  78 excerpt to 1,184 clicks with `max |out + removed - in| = 0`, and `audit --top 3` and
+  `revert --clicks 511` both ran against the result. The release exe did the same with no Python
+  on the path, and its output is bit-for-bit identical to the wheel's.
+- The fix was confirmed present in the published artefact, not just in the tree: a report naming
+  channel 5 of a stereo file now exits 1 with `click 1 is on channel 5 of a 2-channel file`
+  instead of an `IndexError` traceback.
