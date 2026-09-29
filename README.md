@@ -102,6 +102,10 @@ The output format follows the extension you ask for. `-o sideA.flac` writes FLAC
 difference file and report sit beside it. Sample rate, channel count and bit depth always
 match the input, whatever the container.
 
+Digging the cleaned sides for breaks? [breakdig](https://github.com/Booyaka101/breakdig) finds
+the bars where only the drums are playing. Point it at the output folder and leave the
+difference files out: `breakdig index ./cleaned --exclude "*.removed.*"`.
+
 ### Options
 
 | Option | Default | What it does |
