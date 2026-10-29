@@ -223,6 +223,30 @@ and trimmed to the samples that are genuinely impulsive there. Clipped runs are 
 square-topped peak is impulsive but it is not a click, and treating it as one puts holes in
 loud passages.
 
+Each candidate also needs enough integrated impulse evidence above the local floor. This
+rejects weak noise excursions without widening the repair, but can miss some faint clicks.
+
+### Using the detector from Python
+
+Use the complete event API rather than thresholding raw network probabilities:
+
+```python
+import soundfile as sf
+import torch
+from grooveclean.detect import Detector
+
+audio, rate = sf.read("transfer.flac", dtype="float32", always_2d=True)
+detector = Detector.load(device="cpu")
+events = detector.events(torch.from_numpy(audio.T.copy()), rate, sensitivity=0.5)
+for channel, (starts, ends, confidence) in enumerate(events):
+    print(channel, starts / rate, ends / rate)
+```
+
+Input is `[channels, frames]`. Returned indices are at the input sample rate, with exclusive
+ends. `confidence` is the peak network score, not a calibrated probability that an event is a
+click. `Detector.probabilities()` returns raw 44.1 kHz scores and omits the native impulse,
+clipping and event-support checks; a raw score threshold is not an equivalent detector.
+
 Each span is then filled by least-squares AR interpolation of order 64. An AR model is fitted
 to the 256 samples either side and the missing samples are chosen to minimise that model's
 prediction error over every window touching the gap. Every span in a channel is assembled into
@@ -236,12 +260,15 @@ ever written twice or cut in half.
 
 ### The detector was trained on real damage
 
-Clicks are not synthesised. They are harvested from FLAC transfers in the Internet Archive's
+Most click examples are harvested from FLAC transfers in the Internet Archive's
 78rpm collection: a 78 has almost no musical energy above 10 kHz, so impulses are located in
 the band above that, and the click waveform itself is taken as the AR interpolation residual
 over the full band. What the interpolator removes is the tick, and what it leaves is the
 music. How large a residual counts is calibrated per transfer against the same interpolation
 run over randomly chosen click-free spans.
+
+A quarter of the injected events are synthetic damped resonances. A fifth replace the music
+underneath the damage rather than adding to it, to include destructive damage in training.
 
 Those real clicks are then added to click-free music from the Internet Archive's netlabels
 collection, at 0.1 to 200 events per second and 3 to 30 dB over the local level, which makes
@@ -252,8 +279,10 @@ click. The music is rolled off at a random corner between 4 and 16 kHz for most 
 since a shellac transfer has no music in its top octave and a model trained only on full-band
 audio reads that empty band as one long anomaly.
 
-Ten percent of the source items on both sides are held out by hash of the identifier, so no
-recording contributes to both training and evaluation. See `train/` for the whole pipeline.
+Future training reserves separate calibration and test buckets, each about ten percent of
+source identifiers, with the rest used for training. Historical test identifiers keep their
+assignment. The shipped weights are unchanged and predate this three-way split. See `train/`
+for the whole pipeline.
 
 ## Compared to what
 
@@ -306,11 +335,17 @@ Detection is scored on held-out synthetic mixes built from source recordings the
 never saw. A click counts as found if the detected span overlaps it at all, because a tick two
 samples short at one edge is still a caught tick.
 
-The shipped weights score F1 0.994 on that held-out set, precision 0.999 and recall 0.990, with
-no false positives at all in the click-free half. That click-free half is the same kind of
+The released 1.2.1 pipeline scored F1 0.994 on that set, precision 0.999 and recall 0.990, with
+no false positives in the click-free half. The new event-support filter trades some faint-click
+recall for fewer stochastic detections: the development comparison measured F1 0.993 and recall
+0.987. This legacy set has been used for development and threshold calibration, so it is a
+regression gate, not a fresh blind test. That click-free half is the same kind of
 material as the rest of the set, mostly music sitting on a synthesised surface-noise bed, since
 that is the condition the tool actually runs in. The test suite refuses to pass below F1 0.95 or
 above one false positive per minute, so those numbers are a floor rather than a claim.
+
+The new controls, measured recall tradeoff and evaluation limitations are recorded in
+[`bench/STANDALONE_QUALITY.md`](bench/STANDALONE_QUALITY.md).
 
 The training settings that produced them are in
 [`src/grooveclean/weights/detector.json`](src/grooveclean/weights/detector.json).
@@ -349,10 +384,11 @@ pip install -e ".[dev]"
 pytest
 ```
 
-A hundred tests in five groups, matching the five things that can go wrong: the reconstruction
+The offline suite covers the reconstruction
 invariant, the clean-audio guard, detector F1 and false positive rate, a golden click count on
 a bundled 1917 transfer, and the command line's behaviour on mono, stereo, 44.1 kHz, 96 kHz
-and lossy input. They run offline and need no GPU.
+and lossy input. It also checks noise controls paired with injected clicks, short-input
+handling, the Python event API and calibration/test source separation. No GPU is needed.
 
 ## Training your own detector
 
@@ -364,9 +400,13 @@ python train/train.py --steps 12000
 ```
 
 The harvesters talk to archive.org and take a while. Nothing else in the project needs the
-network. Training builds the held-out evaluation file itself if it is not already there, then
-calibrates the two hysteresis thresholds against it and refuses to exit zero if the result
-misses either gate.
+network. Training builds `corpus/calibration_eval` separately from `tests/data/detector_eval`
+and calibrates thresholds only on the former. It scores the final test artifact after choosing
+thresholds and refuses to exit zero unless both sets meet the F1 and false-positive gates.
+Override the paths with `--calibration` and `--eval`; they cannot name the same artifact.
+New artifacts record source identifiers and cached calibration artifacts must have valid
+calibration-only provenance. The historical test artifact remains usable, but is explicitly
+marked as legacy and must not be presented as a fresh blind evaluation.
 
 The second clean harvest asks archive.org for public domain and CC-BY items only. Those are
 the ones the evaluation file can be built from, since that file is checked into the repo.

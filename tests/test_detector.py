@@ -79,7 +79,7 @@ def test_sensitivity_moves_the_detector_in_the_right_direction(held_out, detecto
         actives = metrics.active_masks(clicky, rate, gate)
         repaired = 0
         for p, a in zip(probs, actives, strict=True):
-            starts, ends, _ = detect.spans(p, a, rate, hi, lo)
+            starts, ends, _ = detect.spans(p, a.mask, rate, hi, lo, support=a.support)
             repaired += int((ends - starts).sum())
         found.append(repaired)
     assert found[0] <= found[1] <= found[2], found

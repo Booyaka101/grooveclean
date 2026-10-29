@@ -75,6 +75,7 @@ class Corpus:
     clicks: list[np.ndarray]
     beds: np.ndarray
     clean: list[Path]
+    noise_sources: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.clicks or not self.clean:
@@ -84,11 +85,15 @@ class Corpus:
 
 
 def load_corpus(noise_dir: Path, clean_dir: Path, split: str) -> Corpus:
+    if split not in {"train", "calibration", "test"}:
+        raise CorpusError(f"unknown corpus split: {split}")
     clicks: list[np.ndarray] = []
     beds: list[np.ndarray] = []
+    noise_sources: list[str] = []
     for path in sorted(noise_dir.glob("*.npz")):
         if _ia.split_of(path.stem) != split:
             continue
+        noise_sources.append(path.stem)
         with np.load(path) as blob:
             offsets, flat = blob["offsets"], blob["clicks"]
             pairs = zip(offsets[:-1], offsets[1:], strict=True)
@@ -97,7 +102,7 @@ def load_corpus(noise_dir: Path, clean_dir: Path, split: str) -> Corpus:
                 beds.append(blob["beds"])
     clean = [p for p in sorted(clean_dir.glob("*.flac")) if _ia.split_of(p.stem) == split]
     stacked = np.concatenate(beds) if beds else np.zeros((0, RATE // 4), np.float32)
-    return Corpus(clicks=clicks, beds=stacked, clean=clean)
+    return Corpus(clicks=clicks, beds=stacked, clean=clean, noise_sources=tuple(noise_sources))
 
 
 def quietest(corpus: Corpus, limit: float = QUIET_IMPULSES_PER_S) -> Corpus:
@@ -357,6 +362,8 @@ def write_eval(
         mask=np.packbits(np.concatenate(masks)),
         kind=np.array(kinds, dtype=np.int8),
         rate=np.int64(RATE),
+        clean_sources=np.array([path.stem for path in shippable.clean]),
+        noise_sources=np.array(shippable.noise_sources, dtype=str),
     )
     print(
         f"{out.with_suffix('.flac')}: {len(audio)} segments, {int(lengths.sum()) / RATE:.0f} s, "
@@ -380,12 +387,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--noise", type=Path, default=Path("corpus/noise"))
     ap.add_argument("--clean", type=Path, default=Path("corpus/clean"))
-    ap.add_argument("--split", default="test", choices=["train", "test"])
+    ap.add_argument("--split", default="test", choices=["train", "calibration", "test"])
     ap.add_argument("--clicky", type=int, default=60)
     ap.add_argument("--clean-only", type=int, default=100)
     ap.add_argument("--seed", type=int, default=1979)
-    ap.add_argument("--out", type=Path, default=Path("tests/data/detector_eval"))
+    ap.add_argument("--out", type=Path)
     args = ap.parse_args(argv)
+    if args.out is None:
+        args.out = (Path("tests/data/detector_eval") if args.split == "test"
+                    else Path("corpus") / f"{args.split}_eval")
 
     corpus = load_corpus(args.noise, args.clean, args.split)
     print(

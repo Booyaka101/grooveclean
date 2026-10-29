@@ -58,7 +58,15 @@ def box_mean(x: torch.Tensor, width: int) -> torch.Tensor:
     width = max(1, width | 1)
     pad = width // 2
     flat = x.reshape(-1, x.shape[-1]).to(torch.float64)
-    xp = F.pad(flat[:, None, :], (pad, pad), mode="reflect")[:, 0, :]
+    if flat.shape[-1] == 1:
+        xp = flat.expand(-1, width)
+    elif pad >= flat.shape[-1]:
+        # torch's reflection pad stops at one reflection; short API inputs need several.
+        period = 2 * (flat.shape[-1] - 1)
+        index = torch.arange(-pad, flat.shape[-1] + pad, device=x.device) % period
+        xp = flat[:, torch.minimum(index, period - index)]
+    else:
+        xp = F.pad(flat[:, None, :], (pad, pad), mode="reflect")[:, 0, :]
     c = F.pad(torch.cumsum(xp, dim=-1), (1, 0))
     return ((c[..., width:] - c[..., :-width]) / width).reshape(x.shape).to(x.dtype)
 
@@ -78,6 +86,8 @@ def normalize(x: torch.Tensor, rate: int) -> torch.Tensor:
 
 CLIP_K = 2.5  # impulses above this many local means stop counting towards the local mean
 CLIP_BIAS = 0.9783  # E[min(|N|, CLIP_K E|N|)] / E[|N|], so Gaussian noise still scores 1.0
+# At the default gate of 3, one sample scoring 5 suffices; weaker samples can add up.
+MIN_IMPULSE_SUPPORT = (2.0 / 3.0) ** 2
 
 
 def impulsiveness(x: torch.Tensor, rate: int) -> torch.Tensor:
@@ -237,14 +247,35 @@ def trim_to_active(
     return idx[first[keep]], idx[last[keep]] + 1, keep
 
 
+@dataclass(slots=True)
+class Activity:
+    mask: np.ndarray
+    support: np.ndarray  # cumulative excess energy, with a leading zero
+
+
+def activity(x: np.ndarray, rate: int, gate: float) -> Activity:
+    """Native impulse mask and evidence above its floor, excluding clipped runs.
+
+    A barely-above-floor sample can be an ordinary noise excursion. Confirmation needs
+    either a stronger impulse or support distributed over several samples, not a wider repair.
+    Scaling by the gate keeps this check monotonic with the sensitivity control.
+    """
+    impulsive = impulsiveness(torch.from_numpy(x.astype(np.float32)), rate).numpy()
+    allowed = ~clipped(x)
+    excess = np.where(allowed, np.maximum(impulsive / gate - 1.0, 0.0), 0.0)
+    support = np.concatenate(([0.0], np.cumsum(excess**2, dtype=np.float64)))
+    support *= ANALYSIS_RATE / rate
+    return Activity((impulsive >= gate) & allowed, support)
+
+
 def active_mask(x: np.ndarray, rate: int, gate: float) -> np.ndarray:
     """Samples impulsive enough to belong to a click, minus any clipped run."""
-    impulsive = impulsiveness(torch.from_numpy(x.astype(np.float32)), rate).numpy()
-    return (impulsive >= gate) & ~clipped(x)
+    return activity(x, rate, gate).mask
 
 
 def spans(
-    prob: np.ndarray, active: np.ndarray, rate: int, hi: float, lo: float
+    prob: np.ndarray, active: np.ndarray, rate: int, hi: float, lo: float,
+    *, support: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Click spans for one channel at the native rate, with their peak probabilities.
 
@@ -260,10 +291,21 @@ def spans(
 
     starts, ends, keep = trim_to_active(starts, ends, active)
     peak = peak[keep]
+    if support is not None:
+        confirmed = support[ends] - support[starts] >= MIN_IMPULSE_SUPPORT
+        starts, ends, peak = starts[confirmed], ends[confirmed], peak[confirmed]
     if starts.size == 0:
         return starts, ends, peak
     starts, ends, at = merge_spans(starts, ends)
     return starts, ends, np.maximum.reduceat(peak, at)
+
+
+def click_spans(
+    prob: np.ndarray, x: np.ndarray, rate: int, hi: float, lo: float, gate: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Complete per-channel decision, not a threshold on the raw network alone."""
+    evidence = activity(x, rate, gate)
+    return spans(prob, evidence.mask, rate, hi, lo, support=evidence.support)
 
 
 # --------------------------------------------------------------------------- detector
@@ -314,9 +356,27 @@ class Detector:
         return cls(model, calibration, resolve_device(device))
 
     @torch.no_grad()
+    def events(
+        self, x: torch.Tensor, rate: int, sensitivity: float = 0.5
+    ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
+        """Detect native-rate events in [channels, frames] audio using all safety checks.
+
+        Returns one (starts, exclusive ends, peak confidence) tuple per channel. Raw
+        probabilities are model scores, not calibrated standalone click decisions.
+        """
+        probs = self.probabilities(x, rate).cpu().numpy()
+        signal = x.detach().to(device="cpu", dtype=torch.float32).numpy()
+        hi, lo, gate = thresholds(sensitivity, self.calibration.hi, self.calibration.lo)
+        return [click_spans(p, a, rate, hi, lo, gate) for p, a in zip(probs, signal, strict=True)]
+
+    @torch.no_grad()
     def probabilities(self, x: torch.Tensor, rate: int) -> torch.Tensor:
         """``x`` is [channels, frames] in [-1, 1] at ``rate``; returns [channels, n] at 44.1 kHz."""
+        if x.ndim != 2 or not x.shape[0] or not x.shape[1] or not math.isfinite(rate) or rate <= 0:
+            raise DetectorError("expected non-empty [channels, frames] audio and a positive rate")
         x = x.to(self.device, torch.float32)
+        if not torch.isfinite(x).all():
+            raise DetectorError("audio must contain only finite samples")
         n_out = max(1, int(round(x.shape[-1] * ANALYSIS_RATE / rate)))
         xn = normalize(resample(x, n_out), ANALYSIS_RATE)
         pad = self.model.receptive_field

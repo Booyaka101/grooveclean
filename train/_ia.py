@@ -1,7 +1,7 @@
 """Shared Internet Archive access for the two harvesters.
 
 Both corpora come from the same place and differ only in what gets extracted from the audio,
-so search, metadata, the polite retrying downloader and the train/test split live here.
+so search, metadata, the polite retrying downloader and the source splits live here.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ METADATA_URL = "https://archive.org/metadata/"
 DOWNLOAD_URL = "https://archive.org/download/"
 USER_AGENT = "grooveclean-harvester/1.0 (+https://github.com/Booyaka101/grooveclean)"
 
-TEST_SPLIT_IN_TEN = 1  # one identifier in ten is held out, by hash of the identifier
+TEST_SPLIT_IN_TEN = 1  # preserve the historical test bucket; reserve the next for calibration
 
 
 class HarvestError(Exception):
@@ -176,9 +176,12 @@ def seed_of(identifier: str) -> int:
 
 
 def split_of(identifier: str) -> str:
-    """Deterministic per-identifier split so no source item ever lands in both halves."""
+    """Source-disjoint train/calibration/test split, preserving historical test identifiers."""
     digest = hashlib.sha1(identifier.encode("utf-8")).digest()
-    return "test" if digest[0] % 10 < TEST_SPLIT_IN_TEN else "train"
+    bucket = digest[0] % 10
+    if bucket < TEST_SPLIT_IN_TEN:
+        return "test"
+    return "calibration" if bucket == TEST_SPLIT_IN_TEN else "train"
 
 
 def sample_identifiers(docs: Iterable[dict], count: int, seed: int) -> list[dict]:

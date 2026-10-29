@@ -6,7 +6,8 @@ Training never sees an identifier from the test split, on either side of the mix
 
 Calibration is the second half of the job and matters as much as the loss. The network emits
 a probability; what ships is the (enter, leave) pair that maximises event F1 while staying
-under one false positive per minute of click-free music, measured on the held-out split.
+under one false positive per minute of click-free music on a source-disjoint calibration
+split. The test split is scored only after that choice and never selects the thresholds.
 
     python train/train.py --steps 6000
 """
@@ -28,6 +29,7 @@ from torch.utils.data import DataLoader, Dataset
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _ia  # noqa: E402
 import metrics  # noqa: E402
 import mix  # noqa: E402
 from grooveclean import detect  # noqa: E402
@@ -96,12 +98,26 @@ def learning_rate(step: int, total: int) -> float:
     return LR * 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
 
 
+def check_sources(stem: Path, split: str, *, allow_legacy: bool = False) -> bool:
+    """Verify cached evaluation provenance; legacy tests remain an explicitly marked gate."""
+    with np.load(stem.with_suffix(".npz")) as blob:
+        if allow_legacy and not {"clean_sources", "noise_sources"}.intersection(blob.files):
+            return False
+        for key in ("clean_sources", "noise_sources"):
+            if key not in blob or not blob[key].size:
+                raise mix.CorpusError(f"{stem}: missing {key}; use a new artifact path")
+            if any(_ia.split_of(str(source)) != split for source in blob[key]):
+                raise mix.CorpusError(f"{stem}: {split} contains non-{split} sources")
+    return True
+
+
 def validation_set(
     corpus: mix.Corpus, seed: int, stem: Path, manifest: Path
 ) -> tuple[list[np.ndarray], list[np.ndarray], np.ndarray, int]:
-    """The same artefact the shipped test suite scores against, built if it is not there."""
+    """Build calibration audio separately; refuse stale or unproven source provenance."""
     if not stem.with_suffix(".flac").exists():
         mix.write_eval(corpus, seed, EVAL_CLICKY, EVAL_CLEAN, stem, manifest)
+    check_sources(stem, "calibration")
     return mix.load_eval(stem)
 
 
@@ -143,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--clean", type=Path, default=Path("corpus/clean"))
     ap.add_argument("--out", type=Path, default=Path("src/grooveclean/weights/detector.pt"))
     ap.add_argument("--eval", type=Path, default=Path("tests/data/detector_eval"))
+    ap.add_argument("--calibration", type=Path, default=Path("corpus/calibration_eval"))
     ap.add_argument("--steps", type=int, default=6000)
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--workers", type=int, default=8)
@@ -150,11 +167,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=20260910)
     ap.add_argument("--device", default="auto")
     args = ap.parse_args(argv)
+    if args.calibration.with_suffix(".flac").resolve() == args.eval.with_suffix(".flac").resolve():
+        ap.error("--calibration and --eval must use different artifact paths")
 
     device = detect.resolve_device(args.device)
     torch.manual_seed(args.seed)
     try:
         train_corpus = mix.load_corpus(args.noise, args.clean, "train")
+        calibration_corpus = mix.load_corpus(args.noise, args.clean, "calibration")
         test_corpus = mix.load_corpus(args.noise, args.clean, "test")
     except mix.CorpusError as exc:
         print(exc, file=sys.stderr)
@@ -162,14 +182,27 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"train: {len(train_corpus.clicks):,} clicks, {train_corpus.beds.shape[0]} beds, "
         f"{len(train_corpus.clean)} clean clips\n"
+        f"calibration: {len(calibration_corpus.clicks):,} clicks, "
+        f"{len(calibration_corpus.clean)} clean clips\n"
         f"test:  {len(test_corpus.clicks):,} clicks, {test_corpus.beds.shape[0]} beds, "
         f"{len(test_corpus.clean)} clean clips",
         flush=True,
     )
 
-    segments, masks, kinds, rate = validation_set(
-        test_corpus, args.seed + 7, args.eval, args.clean / "manifest.json"
-    )
+    try:
+        segments, masks, kinds, rate = validation_set(
+            calibration_corpus, args.seed + 7, args.calibration, args.clean / "manifest.json"
+        )
+        if not args.eval.with_suffix(".flac").exists():
+            mix.write_eval(
+                test_corpus, args.seed + 11, EVAL_CLICKY, EVAL_CLEAN,
+                args.eval, args.clean / "manifest.json",
+            )
+        test_sources_verified = check_sources(args.eval, "test", allow_legacy=True)
+        test_segments, test_masks, test_kinds, test_rate = mix.load_eval(args.eval)
+    except (mix.CorpusError, OSError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
 
     model = detect.ClickCNN().to(device)
     trim = model.receptive_field // 2
@@ -215,6 +248,15 @@ def main(argv: list[str] | None = None) -> int:
     detector = detect.Detector(model, detect.Calibration(0.5, 0.5), device)
     hi, lo, score = calibrate(detector, segments, masks, kinds, rate)
     print(f"calibrated hi={hi:.2f} lo={lo:.2f}: {score}", flush=True)
+    gate = detect.thresholds(0.5, hi, lo)[2]
+    test_score = metrics.evaluate(
+        metrics.probabilities(detector, test_segments, test_rate),
+        metrics.active_masks(test_segments, test_rate, gate),
+        test_masks, test_kinds, test_rate, hi, lo,
+    )
+    print(f"test (not used for calibration): {test_score}", flush=True)
+    if not test_sources_verified:
+        print("Legacy test artifact has no source manifest; this is not a fresh blind test.")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
@@ -234,11 +276,16 @@ def main(argv: list[str] | None = None) -> int:
                 "train_clicks": len(train_corpus.clicks),
                 "train_clips": len(train_corpus.clean),
                 "calibration": {"hi": hi, "lo": lo},
-                "held_out": {
+                "test_sources_verified": test_sources_verified,
+                "calibration_score": {
                     "f1": round(score.f1, 4),
-                    "precision": round(score.precision, 4),
-                    "recall": round(score.recall, 4),
                     "fp_per_minute_on_clean": round(score.fp_per_minute, 3),
+                },
+                "held_out": {
+                    "f1": round(test_score.f1, 4),
+                    "precision": round(test_score.precision, 4),
+                    "recall": round(test_score.recall, 4),
+                    "fp_per_minute_on_clean": round(test_score.fp_per_minute, 3),
                 },
             },
             indent=2,
@@ -247,7 +294,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     size_mb = args.out.stat().st_size / 2**20
     print(f"wrote {args.out} ({size_mb:.1f} MB)", flush=True)
-    return 0 if score.f1 >= 0.95 and score.fp_per_minute <= FP_PER_MINUTE else 1
+    passed = all(s.f1 >= 0.95 and s.fp_per_minute <= FP_PER_MINUTE for s in (score, test_score))
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

@@ -49,8 +49,9 @@ def _process_block(
     y = block.data.copy()
     found = []
     for ch in range(info.channels):
-        active = detect.active_mask(signal[ch], info.samplerate, gate)
-        starts, ends, conf = detect.spans(prob[ch], active, info.samplerate, hi, lo)
+        starts, ends, conf = detect.click_spans(
+            prob[ch], signal[ch], info.samplerate, hi, lo, gate
+        )
         methods = np.full(starts.size, UNREPAIRED, dtype=np.int8)
         if starts.size:
             fits = (ends - starts) <= max_width
