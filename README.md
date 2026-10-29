@@ -402,10 +402,13 @@ python train/train.py --steps 12000
 The harvesters talk to archive.org and take a while. Nothing else in the project needs the
 network. Training builds `corpus/calibration_eval` separately from `tests/data/detector_eval`
 and calibrates thresholds only on the former. It scores the final test artifact after choosing
-thresholds and refuses to exit zero unless both sets meet the F1 and false-positive gates.
+thresholds. Both sets must contain labeled events and at least 180 seconds of clean audio,
+reach event F1 of at least 0.95 and stay within one false detection per clean minute before
+training writes the checkpoint or metadata. Failed gates leave existing outputs unchanged.
 Override the paths with `--calibration` and `--eval`; they cannot name the same artifact.
 New artifacts record source identifiers and cached calibration artifacts must have valid
-calibration-only provenance. The historical test artifact remains usable, but is explicitly
+calibration-only provenance. Malformed audio, bounds, labels, masks and partial caches are
+rejected. The historical test artifact remains usable, but is explicitly
 marked as legacy and must not be presented as a fresh blind evaluation.
 
 The second clean harvest asks archive.org for public domain and CC-BY items only. Those are

@@ -94,7 +94,7 @@ def check_click(entry: dict, position: int, info: io.Info) -> None:
     if not isinstance(entry, dict) or any(field not in entry for field in CLICK_FIELDS):
         raise ValueError(f"click {position} is missing fields")
     start, end, channel = entry["start_sample"], entry["end_sample"], entry["channel"]
-    if not all(isinstance(value, int) for value in (start, end, channel)):
+    if not all(type(value) is int for value in (start, end, channel)):
         raise ValueError(f"click {position} has a position that is not a whole number")
     if not 0 <= channel < info.channels:
         raise ValueError(
@@ -105,6 +105,15 @@ def check_click(entry: dict, position: int, info: io.Info) -> None:
             f"click {position} covers samples {start} to {end}, outside the file's 0 to "
             f"{info.frames}"
         )
+    if type(entry["width_samples"]) is not int or entry["width_samples"] != end - start:
+        raise ValueError(f"click {position} has an invalid width_samples")
+    for key, upper in (("confidence", 1.0), ("residual_rms", math.inf)):
+        value = entry[key]
+        if (type(value) not in (int, float) or not math.isfinite(value)
+                or not 0 <= value <= upper):
+            raise ValueError(f"click {position} has an invalid {key}")
+    if entry["repair"] not in METHOD_NAMES:
+        raise ValueError(f"click {position} has an unknown repair method")
 
 
 def parse_indices(text: str, total: int) -> set[int]:
@@ -129,7 +138,10 @@ def parse_time(text: str) -> float:
     """Seconds from `92`, `1:32` or `1:32.415`, the way a player writes a position."""
     minutes, _, seconds = text.strip().rpartition(":")
     try:
-        return (float(minutes) * 60.0 if minutes else 0.0) + float(seconds)
+        result = (float(minutes) * 60.0 if minutes else 0.0) + float(seconds)
+        if not math.isfinite(result) or result < 0:
+            raise ValueError("time must be finite and nonnegative")
+        return result
     except ValueError:
         raise ReviewError(f"{text!r} is not a time like 1:32 or 92") from None
 
@@ -210,6 +222,8 @@ def audit(
 ) -> list[tuple[int, int]]:
     """Write the two aligned excerpt files. Returns (excerpt number, click position) pairs."""
     info = pair.cleaned
+    io.check_outputs((info.path, pair.removed.path, io.sidecars(Path(info.path))[1]),
+                     (before_path, after_path))
     context = int(round(context_ms * 1e-3 * info.samplerate))
     gap = np.zeros((int(round(GAP_MS * 1e-3 * info.samplerate)), info.channels))
     cut = windows(pair.clicks, chosen, context, info.frames)
@@ -241,6 +255,8 @@ def revert(pair: Pair, chosen: list[int], output: Path) -> dict:
     channels = np.array([c["channel"] for c in picked], dtype=np.int64)
 
     removed_path, report_path = io.sidecars(output)
+    io.check_outputs((info.path, pair.removed.path, io.sidecars(Path(info.path))[1]),
+                     (output, removed_path, report_path))
     output.parent.mkdir(parents=True, exist_ok=True)
     io.format_for(output, info)
     with (

@@ -12,6 +12,14 @@
 - Separate future training, calibration and final-test source identifiers. Validate cached
   artifact provenance, reject calibration/test path aliases and label legacy evaluation honestly.
 - Add paired noise/click controls, event-support checks and Python API regression coverage.
+- Preserve float64 clipping decisions in the Python API, reject nonfinite sensitivity, merge
+  nested spans transitively and include the exact integrated-support threshold.
+- Validate evaluation audio, bounds, labels, packed masks and source identifiers. Reject
+  incomplete caches rather than overwriting them. Failed training gates leave checkpoint
+  outputs unchanged; both evaluations require labeled events and at least 180 clean seconds.
+- Reject hard-link output aliases and protect direct audit/revert calls from input collisions.
+  Validate all review-record fields and reject nonfinite or negative review times.
+- Add analytical resampling, interval-union and sensitivity-coverage regression checks.
 
 ## 1.2.1 - 2026-09-12
 

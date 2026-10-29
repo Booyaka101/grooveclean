@@ -82,6 +82,15 @@ def test_legacy_test_provenance_is_not_falsely_certified(tmp_path):
     assert not train.check_sources(stem, "test", allow_legacy=True)
 
 
+@pytest.mark.parametrize("sources", [np.array(12), np.array([12]), np.array([["source-1"]]),
+                                    np.array([""]), np.array([b"source-1"])])
+def test_malformed_source_manifest_is_rejected(tmp_path, sources):
+    stem = tmp_path / "eval"
+    np.savez(stem.with_suffix(".npz"), clean_sources=sources, noise_sources=sources)
+    with pytest.raises(mix.CorpusError, match="invalid clean_sources"):
+        train.check_sources(stem, "test")
+
+
 def test_loader_and_eval_writer_preserve_source_provenance(tmp_path, monkeypatch):
     for split in ("train", "calibration", "test"):
         source = identifiers(split)[0]

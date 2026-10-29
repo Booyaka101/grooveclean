@@ -148,6 +148,19 @@ class Block:
     pre: int          # context frames before core_start inside `data`
 
 
+def check_outputs(inputs: Iterable[str | Path], outputs: Iterable[str | Path]) -> None:
+    """Reject path and hard-link aliases before opening any output for writing."""
+    protected = [Path(path) for path in inputs]
+    for output in map(Path, outputs):
+        for other in protected:
+            if output.resolve() == other.resolve() or (
+                output.exists() and other.exists() and output.samefile(other)
+            ):
+                raise AudioError(f"{output}: an output is the input file or another output; "
+                                 "choose another -o")
+        protected.append(output)
+
+
 @contextmanager
 def unlink_on_failure(paths: Iterable[Path]) -> Iterator[None]:
     """Tidy away a part-written set, because half a pair looks exactly like a finished one.

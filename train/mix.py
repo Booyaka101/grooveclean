@@ -371,14 +371,44 @@ def write_eval(
     )
 
 
+def eval_exists(stem: Path) -> bool:
+    """A partial cache is an error, not permission to overwrite its surviving half."""
+    paths = [stem.with_suffix(suffix) for suffix in (".flac", ".npz")]
+    exists = [path.exists() for path in paths]
+    if any(exists) and (not all(exists) or not all(path.is_file() for path in paths)):
+        raise CorpusError(f"{stem}: incomplete evaluation artifact; use a new artifact path")
+    return all(exists)
+
+
 def load_eval(stem: Path) -> tuple[list[np.ndarray], list[np.ndarray], np.ndarray, int]:
     """Read back what write_eval produced: (segments, per-segment masks, kinds, rate)."""
-    audio, rate = sf.read(str(stem.with_suffix(".flac")), dtype="float32")
-    with np.load(stem.with_suffix(".npz")) as blob:
-        bounds, kinds = blob["bounds"], blob["kind"]
-        flat = np.unpackbits(blob["mask"])[: int(bounds[-1])].astype(bool)
+    try:
+        audio, rate = sf.read(str(stem.with_suffix(".flac")), dtype="float32")
+        with np.load(stem.with_suffix(".npz")) as blob:
+            bounds, kinds, packed, declared_rate = (
+                blob[key] for key in ("bounds", "kind", "mask", "rate")
+            )
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, EOFError) as exc:
+        raise CorpusError(f"{stem}: cannot read evaluation artifact ({exc})") from exc
+    if (audio.ndim != 1 or not audio.size or not np.isfinite(audio).all()
+            or rate != RATE or declared_rate.ndim != 0 or declared_rate.dtype.kind not in "iu"
+            or declared_rate.item() != rate):
+        raise CorpusError(f"{stem}: evaluation audio must be finite mono at {RATE} Hz")
+    if (bounds.ndim != 1 or bounds.dtype.kind not in "iu" or bounds.size < 2
+            or bounds[0] != 0 or bounds[-1] != audio.size
+            or np.any(bounds[1:] <= bounds[:-1])):
+        raise CorpusError(f"{stem}: invalid evaluation segment bounds")
+    if (kinds.ndim != 1 or kinds.dtype.kind not in "iu" or kinds.size != bounds.size - 1
+            or not np.isin(kinds, [0, 1]).all()):
+        raise CorpusError(f"{stem}: invalid evaluation segment kinds")
+    if packed.ndim != 1 or packed.dtype != np.uint8 or packed.size != (audio.size + 7) // 8:
+        raise CorpusError(f"{stem}: invalid packed evaluation mask")
+    flat = np.unpackbits(packed)[:audio.size].astype(bool)
     pairs = list(zip(bounds[:-1], bounds[1:], strict=True))
-    return [audio[a:b] for a, b in pairs], [flat[a:b] for a, b in pairs], kinds, int(rate)
+    masks = [flat[a:b] for a, b in pairs]
+    if any(mask.any() for mask, kind in zip(masks, kinds, strict=True) if kind == 0):
+        raise CorpusError(f"{stem}: clean evaluation segment contains labeled damage")
+    return [audio[a:b] for a, b in pairs], masks, kinds, int(rate)
 
 
 def main(argv: list[str] | None = None) -> int:

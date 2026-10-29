@@ -86,7 +86,7 @@ def normalize(x: torch.Tensor, rate: int) -> torch.Tensor:
 
 CLIP_K = 2.5  # impulses above this many local means stop counting towards the local mean
 CLIP_BIAS = 0.9783  # E[min(|N|, CLIP_K E|N|)] / E[|N|], so Gaussian noise still scores 1.0
-# At the default gate of 3, one sample scoring 5 suffices; weaker samples can add up.
+# At 44.1 kHz and the default gate of 3, one sample scoring 5 suffices.
 MIN_IMPULSE_SUPPORT = (2.0 / 3.0) ** 2
 
 
@@ -180,6 +180,8 @@ def _sigmoid(z: float) -> float:
 
 def thresholds(sensitivity: float, cal_hi: float, cal_lo: float) -> tuple[float, float, float]:
     """Map the 0..1 knob onto (enter, leave, native impulse gate). 0.5 is the trained point."""
+    if not math.isfinite(sensitivity):
+        raise DetectorError("sensitivity must be finite")
     s = min(max(float(sensitivity), 0.0), 1.0)
     shift = SENSITIVITY_SPREAD * (0.5 - s)
     gate = 3.0 * math.exp(1.4 * (0.5 - s))
@@ -214,7 +216,7 @@ def merge_spans(starts: np.ndarray, ends: np.ndarray) -> tuple[np.ndarray, np.nd
     """
     if starts.size == 0:
         return starts, ends, np.zeros(0, dtype=np.int64)
-    first = np.concatenate(([True], starts[1:] > ends[:-1]))
+    first = np.concatenate(([True], starts[1:] > np.maximum.accumulate(ends)[:-1]))
     at = np.flatnonzero(first)
     return starts[first], np.maximum.reduceat(ends, at), at
 
@@ -262,7 +264,7 @@ def activity(x: np.ndarray, rate: int, gate: float) -> Activity:
     """
     impulsive = impulsiveness(torch.from_numpy(x.astype(np.float32)), rate).numpy()
     allowed = ~clipped(x)
-    excess = np.where(allowed, np.maximum(impulsive / gate - 1.0, 0.0), 0.0)
+    excess = np.where(allowed, np.maximum(impulsive.astype(np.float64) / gate - 1.0, 0.0), 0.0)
     support = np.concatenate(([0.0], np.cumsum(excess**2, dtype=np.float64)))
     support *= ANALYSIS_RATE / rate
     return Activity((impulsive >= gate) & allowed, support)
@@ -364,9 +366,10 @@ class Detector:
         Returns one (starts, exclusive ends, peak confidence) tuple per channel. Raw
         probabilities are model scores, not calibrated standalone click decisions.
         """
-        probs = self.probabilities(x, rate).cpu().numpy()
-        signal = x.detach().to(device="cpu", dtype=torch.float32).numpy()
         hi, lo, gate = thresholds(sensitivity, self.calibration.hi, self.calibration.lo)
+        probs = self.probabilities(x, rate).cpu().numpy()
+        # Native clipping must retain PCM32/float64 distinctions, just as the CLI does.
+        signal = x.detach().to(device="cpu", dtype=torch.float64).numpy()
         return [click_spans(p, a, rate, hi, lo, gate) for p, a in zip(probs, signal, strict=True)]
 
     @torch.no_grad()

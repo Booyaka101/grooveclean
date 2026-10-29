@@ -118,3 +118,45 @@ def test_injected_click_is_localized_at_native_rate(detector, rate):
     starts, ends, _ = detector.events(x, rate)[0]
     assert np.any((starts <= rate // 2) & (ends > rate // 2)), (rate, starts, ends)
     assert np.all((ends - starts) / rate < .002)
+
+
+def test_public_events_preserves_native_precision_for_clipping(detector, monkeypatch):
+    x = torch.zeros(1, 1000, dtype=torch.float64)
+    x[0, 490:493] = torch.tensor([.5, .5 - 1e-9, .5 - 2e-9], dtype=torch.float64)
+    p = torch.zeros(1, 1000)
+    p[0, 485:500] = 1
+    monkeypatch.setattr(detector, "probabilities", lambda x, rate: p)
+    hi, lo, gate = detect.thresholds(.5, detector.calibration.hi, detector.calibration.lo)
+    expected = detect.click_spans(p[0].numpy(), x[0].numpy(), 44100, hi, lo, gate)
+    assert expected[0].size
+    actual = detector.events(x, 44100)[0]
+    for got, want in zip(actual, expected, strict=True):
+        np.testing.assert_array_equal(got, want)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_nonfinite_sensitivity_is_rejected_before_inference(detector, monkeypatch, value):
+    def unexpected(*args):
+        pytest.fail("invalid sensitivity reached inference")
+    monkeypatch.setattr(detector, "probabilities", unexpected)
+    with pytest.raises(detect.DetectorError, match="sensitivity"):
+        detector.events(torch.zeros(1, 1000), 44100, value)
+
+
+def test_nested_spans_merge_transitively():
+    starts, ends, at = detect.merge_spans(np.array([0, 5, 10, 30]), np.array([20, 7, 15, 31]))
+    np.testing.assert_array_equal(starts, [0, 30])
+    np.testing.assert_array_equal(ends, [20, 31])
+    np.testing.assert_array_equal(at, [0, 3])
+
+
+def test_default_support_includes_an_exact_score_of_five(monkeypatch):
+    def impulse(x, rate):
+        result = torch.zeros_like(x)
+        result[50] = 5
+        return result
+    monkeypatch.setattr(detect, "impulsiveness", impulse)
+    a = detect.activity(np.zeros(100, dtype=np.float32), 44100, 3)
+    p = np.zeros(100, dtype=np.float32)
+    p[50] = 1
+    assert detect.spans(p, a.mask, 44100, .9, .5, support=a.support)[0].size == 1

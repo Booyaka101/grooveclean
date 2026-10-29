@@ -6,7 +6,7 @@ full-band music is now reliably separable from groove clicks. The weights remain
 ## Decision and measured cost
 
 Require integrated squared impulse excess over the native gate, normalized to 44.1 kHz
-sample units. At default sensitivity, a single sample with impulsiveness 5 suffices, but
+sample units. At 44.1 kHz and default sensitivity, a sample with impulsiveness 5 suffices, but
 several weaker samples can provide the same evidence. Clipped samples contribute nothing.
 Reject insufficiently supported events without extending their repair boundaries.
 
@@ -79,6 +79,27 @@ cannot all be called false positives or removed artifacts. The result does not e
 solution for dense full-band music; it limits the scope of the stochastic-control improvement.
 
 ## Remaining limits
+
+### Follow-up correctness review
+
+The review fixes float64 clipping parity between the public API and CLI, transitive merging
+of nested spans, nonfinite sensitivity and rounding at the exact support threshold. Independent
+analytical tones test FFT resampling, randomized interval unions test merging, and coverage
+checks verify that support only rejects events and that sensitivity preserves detected coverage.
+No thresholds or weights were retuned.
+Rechecking the legacy artifact after these fixes reproduces the F1, precision, recall,
+sample F1 and zero-clean-detection figures above.
+
+Evaluation artifacts now validate audio, rate, bounds, kinds, masks and source-array structure;
+partial caches are refused. Before saving outputs, training requires both evaluations to have
+labeled events, at least 180 clean seconds, F1 at least 0.95 and at most one false detection per
+clean minute. Mocked training tests verify failed gates preserve existing checkpoint files and
+a passing run produces a loadable checkpoint. They do not constitute a new training run.
+
+Output checks now reject hard-link aliases as well as matching paths, including direct review
+API calls and collisions between output members. Review loading validates all click fields.
+These are pre-write guards, not transactional multi-file replacement: unrelated pre-existing
+outputs can still be overwritten, and write failure does not roll back an old output set.
 
 The exact dense-rock recording reported downstream was unavailable. No exact reproduction,
 independently labeled real-world evaluation, retraining or listening-panel validation was

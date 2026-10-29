@@ -46,6 +46,7 @@ WARMUP = 200
 HI_GRID = 1.0 / (1.0 + np.exp(-np.linspace(-1.0, 7.0, 21)))
 LO_GRID = 1.0 / (1.0 + np.exp(-np.linspace(-4.0, 5.0, 16)))
 FP_PER_MINUTE = 1.0
+MIN_CLEAN_SECONDS = 180.0
 F1_TIE = 0.001  # closer than this is a couple of events, not a real difference
 EVAL_CLICKY = 60
 EVAL_CLEAN = 100
@@ -106,7 +107,10 @@ def check_sources(stem: Path, split: str, *, allow_legacy: bool = False) -> bool
         for key in ("clean_sources", "noise_sources"):
             if key not in blob or not blob[key].size:
                 raise mix.CorpusError(f"{stem}: missing {key}; use a new artifact path")
-            if any(_ia.split_of(str(source)) != split for source in blob[key]):
+            sources = blob[key]
+            if sources.ndim != 1 or sources.dtype.kind != "U" or not np.all(sources != ""):
+                raise mix.CorpusError(f"{stem}: invalid {key}; expected source identifiers")
+            if any(_ia.split_of(str(source)) != split for source in sources):
                 raise mix.CorpusError(f"{stem}: {split} contains non-{split} sources")
     return True
 
@@ -115,7 +119,7 @@ def validation_set(
     corpus: mix.Corpus, seed: int, stem: Path, manifest: Path
 ) -> tuple[list[np.ndarray], list[np.ndarray], np.ndarray, int]:
     """Build calibration audio separately; refuse stale or unproven source provenance."""
-    if not stem.with_suffix(".flac").exists():
+    if not mix.eval_exists(stem):
         mix.write_eval(corpus, seed, EVAL_CLICKY, EVAL_CLEAN, stem, manifest)
     check_sources(stem, "calibration")
     return mix.load_eval(stem)
@@ -193,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         segments, masks, kinds, rate = validation_set(
             calibration_corpus, args.seed + 7, args.calibration, args.clean / "manifest.json"
         )
-        if not args.eval.with_suffix(".flac").exists():
+        if not mix.eval_exists(args.eval):
             mix.write_eval(
                 test_corpus, args.seed + 11, EVAL_CLICKY, EVAL_CLEAN,
                 args.eval, args.clean / "manifest.json",
@@ -258,6 +262,16 @@ def main(argv: list[str] | None = None) -> int:
     if not test_sources_verified:
         print("Legacy test artifact has no source manifest; this is not a fresh blind test.")
 
+    passed = all(
+        s.tp + s.fn > 0 and s.clean_seconds >= MIN_CLEAN_SECONDS
+        and s.f1 >= 0.95 and s.fp_per_minute <= FP_PER_MINUTE
+        for s in (score, test_score)
+    )
+    if not passed:
+        print("Quality gates failed or evidence is insufficient; checkpoint outputs unchanged.",
+              file=sys.stderr)
+        return 1
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
@@ -294,8 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     size_mb = args.out.stat().st_size / 2**20
     print(f"wrote {args.out} ({size_mb:.1f} MB)", flush=True)
-    passed = all(s.f1 >= 0.95 and s.fp_per_minute <= FP_PER_MINUTE for s in (score, test_score))
-    return 0 if passed else 1
+    return 0
 
 
 if __name__ == "__main__":
