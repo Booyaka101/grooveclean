@@ -103,14 +103,14 @@ def probabilities(
     ]
 
 
-def active_masks(segments: list[np.ndarray], rate: int, gate: float) -> list[np.ndarray]:
+def active_masks(segments: list[np.ndarray], rate: int, gate: float) -> list[detect.Activity]:
     """Cached separately from `evaluate` because a threshold sweep does not change it."""
-    return [detect.active_mask(seg, rate, gate) for seg in segments]
+    return [detect.activity(seg, rate, gate) for seg in segments]
 
 
 def evaluate(
     probs: list[np.ndarray],
-    actives: list[np.ndarray],
+    actives: list[detect.Activity],
     masks: list[np.ndarray],
     kinds: np.ndarray,
     rate: int,
@@ -120,7 +120,9 @@ def evaluate(
     """Score one (hi, lo) pair. `kinds` marks each segment 1 for clicky, 0 for clean music."""
     score = Score()
     for prob, active, mask, kind in zip(probs, actives, masks, kinds, strict=True):
-        starts, ends, _ = detect.spans(prob, active, rate, hi, lo)
+        starts, ends, _ = detect.spans(
+            prob, active.mask, rate, hi, lo, support=active.support
+        )
         if not kind:
             score.clean_fp += int(starts.size)
             score.clean_seconds += mask.size / rate

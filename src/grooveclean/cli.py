@@ -49,8 +49,9 @@ def _process_block(
     y = block.data.copy()
     found = []
     for ch in range(info.channels):
-        active = detect.active_mask(signal[ch], info.samplerate, gate)
-        starts, ends, conf = detect.spans(prob[ch], active, info.samplerate, hi, lo)
+        starts, ends, conf = detect.click_spans(
+            prob[ch], signal[ch], info.samplerate, hi, lo, gate
+        )
         methods = np.full(starts.size, UNREPAIRED, dtype=np.int8)
         if starts.size:
             fits = (ends - starts) <= max_width
@@ -101,9 +102,7 @@ def clean_file(
     dst = Path(dst)
     info = io.probe(src)
     removed_path, report_path = sidecars(dst)
-    source = Path(src).resolve()
-    if source in {dst.resolve(), removed_path.resolve(), report_path.resolve()}:
-        raise io.AudioError(f"{src}: one of the three outputs is the input file; choose another -o")
+    io.check_outputs((src,), (dst, removed_path, report_path))
     dst.parent.mkdir(parents=True, exist_ok=True)
     io.format_for(dst, info)  # up front, so a dry run refuses what the real run would refuse
 
@@ -544,10 +543,6 @@ def audit(
     pair, chosen = _selected(cleaned, **asked)
     base = Path(output) if output else io.sidecar(cleaned, ".audit")
     before_path, after_path = io.sidecar(base, ".before"), io.sidecar(base, ".after")
-    if {before_path.resolve(), after_path.resolve()} & {
-        p.resolve() for p in (cleaned, *io.sidecars(cleaned))
-    }:
-        _fail(f"{base}: that would write over the run being audited; choose another -o")
     try:
         rows = review.audit(
             pair, review.rank(pair.clicks, chosen, order, top), before_path, after_path, context_ms
@@ -608,10 +603,6 @@ def revert(
             "started with."
         )
     pair, chosen = _selected(cleaned, **asked)
-    if {p.resolve() for p in (output, *io.sidecars(output))} & {
-        p.resolve() for p in (cleaned, *io.sidecars(cleaned))
-    }:
-        _fail(f"{output}: one of the three outputs is one of the three inputs; choose another -o")
     try:
         built = review.revert(pair, chosen, Path(output))
     except (io.AudioError, review.ReviewError) as exc:

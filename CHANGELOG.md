@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.3.0 - 2026-10-30
+
+- Require integrated impulse evidence for each candidate event. This rejects weak stochastic
+  excursions without widening repaired spans, at the cost of some faint-click recall.
+  The legacy development comparison changes F1 from 0.9944 to 0.9930 and recall from 0.9903
+  to 0.9865. Existing model weights and sensitivity controls are unchanged.
+- Add `Detector.events()` for complete per-channel native-rate decisions. Raw network
+  probabilities alone do not include impulse confirmation or clipping exclusion.
+- Handle short inputs with repeated reflection and reject empty or nonfinite detector input.
+- Separate future training, calibration and final-test source identifiers. Validate cached
+  artifact provenance, reject calibration/test path aliases and label legacy evaluation honestly.
+- Add paired noise/click controls, event-support checks and Python API regression coverage.
+- Preserve float64 clipping decisions in the Python API, reject nonfinite sensitivity, merge
+  nested spans transitively and include the exact integrated-support threshold.
+- Validate evaluation audio, bounds, labels, packed masks and source identifiers. Reject
+  incomplete caches rather than overwriting them. Failed training gates leave checkpoint
+  outputs unchanged; both evaluations require labeled events and at least 180 clean seconds.
+- Reject hard-link output aliases and protect direct audit/revert calls from input collisions.
+  Validate all review-record fields and reject nonfinite or negative review times.
+- Add analytical resampling, interval-union and sensitivity-coverage regression checks.
+
 ## 1.2.1 - 2026-09-12
 
 A hardening pass over the two review commands. No change to the detector, the repair, the
