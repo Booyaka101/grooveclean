@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 - 2026-10-30
 
 - Require integrated impulse evidence for each candidate event. This rejects weak stochastic
   excursions without widening repaired spans, at the cost of some faint-click recall.
