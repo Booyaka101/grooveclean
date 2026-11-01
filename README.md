@@ -111,15 +111,19 @@ difference files out: `breakdig index ./cleaned --exclude "*.removed.*"`.
 ```bash
 grooveclean timeline sideA.report.json
 grooveclean timeline sideA.report.json --bucket-seconds 30 --sort coverage --top 10
+grooveclean timeline sideA.report.json --sort unrepaired --top 10
 grooveclean timeline sideA.report.json --sort events --format json > timeline.json
 grooveclean timeline sideA.report.json --format csv > timeline.csv
 ```
 
 This reads only the JSON report, including dry-run reports. It does not need the audio or
 difference file, load detector weights, or change the report. Buckets default to 10 seconds;
-`--sort coverage` ranks repaired coverage and `--sort events` ranks event rate, with earlier
-buckets breaking ties. `--top` limits buckets after sorting. Text and JSON include channel
-breakdowns; CSV has one row per bucket and channel. Channel numbers are zero-based.
+`--sort coverage` ranks repaired coverage, `--sort events` ranks event rate, and
+`--sort unrepaired` ranks unrepaired-event rate, with earlier buckets breaking ties.
+`--top` limits buckets after sorting. Text and JSON retain whole-report totals even when
+showing only the worst buckets. Their overall coverage is duration-weighted, not an average
+of bucket percentages. Text and JSON include channel breakdowns; CSV has one row per bucket
+and channel. Channel numbers are zero-based.
 
 Each detected event is counted once in the bucket containing its onset, including events
 marked `unrepaired`. Event rates use the bucket's actual duration, including a shorter final
@@ -133,8 +137,9 @@ timeline uses the nearest nominal frame count and extends it to a reported event
 only within the rounding tolerance of 0.5 ms. Final-bucket timing and percentages inherit
 that uncertainty. Bucket sizes round to the nearest sample. More than 100,000 buckets or
 bucket/channel combinations are rejected; choose a larger bucket for very long reports.
-JSON includes the effective bucket size, reported and inferred duration, and 1 ms duration
-precision. JSON and CSV go to stdout, so redirect them to a **new** file, not the source report.
+JSON includes `schema_version: 1`, whole-report `summary`, total/shown bucket counts, the
+effective bucket size, reported and inferred duration, and 1 ms duration precision.
+JSON and CSV go to stdout, so redirect them to a **new** file, not the source report.
 
 ### Options
 

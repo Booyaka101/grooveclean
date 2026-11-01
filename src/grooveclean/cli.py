@@ -624,7 +624,7 @@ def revert(
 @click.option("--bucket-seconds", default=10.0, type=float, show_default=True,
               help="Time per bucket, rounded to the nearest sample.")
 @click.option("--sort", "order", type=click.Choice(list(timeline.SORT_KEYS)), default="time",
-              show_default=True, help="Rank by time, repaired coverage, or event rate.")
+              show_default=True, help="Rank by time, coverage, event rate, or unrepaired rate.")
 @click.option("--top", type=click.IntRange(1), help="Show only the first N buckets after sorting.")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "csv"]),
               default="text", show_default=True)
@@ -637,6 +637,7 @@ def timeline_command(report_path: Path, bucket_seconds: float, order: str,
         raise click.ClickException(f"{report_path}: {exc}") from exc
     rows = sorted(built["buckets"], key=timeline.SORT_KEYS[order])
     built["buckets"] = rows[:top] if top else rows
+    built["shown_buckets"] = len(built["buckets"])
     built["sort"] = order
     if output_format == "json":
         click.echo(json.dumps(built, indent=2, allow_nan=False))
@@ -652,6 +653,13 @@ def timeline_command(report_path: Path, bucket_seconds: float, order: str,
                                  ch["repaired_samples"], ch["repaired_pct"]])
         click.echo(output.getvalue(), nl=False)
     else:
+        summary = built["summary"]
+        click.echo(
+            f"Whole report: {summary['events']:,} events, "
+            f"{summary['unrepaired_events']:,} unrepaired, "
+            f"{summary['repaired_pct']:.2f}% repaired. "
+            f"Showing {built['shown_buckets']:,}/{built['total_buckets']:,} buckets."
+        )
         click.echo("Seconds              Events    /sec  Unrepaired  Repaired  "
                    "Channels (events / repaired)")
         for row in built["buckets"]:

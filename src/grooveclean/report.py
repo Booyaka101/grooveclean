@@ -9,6 +9,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def is_finite_number(value: object) -> bool:
+    """JSON numbers may be huge integers as well as NaN/Infinity extensions."""
+    try:
+        return type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def check_click(entry: dict, position: int, *, channels: int, frames: int) -> None:
     """Validate editable report records before indexing audio or aggregating spans."""
     fields = ("channel", "start_sample", "end_sample", "width_samples", "confidence",
@@ -28,8 +36,7 @@ def check_click(entry: dict, position: int, *, channels: int, frames: int) -> No
         raise ValueError(f"click {position} has an invalid width_samples")
     for key, upper in (("confidence", 1.0), ("residual_rms", math.inf)):
         value = entry[key]
-        if (type(value) not in (int, float) or not math.isfinite(value)
-                or not 0 <= value <= upper):
+        if not is_finite_number(value) or not 0 <= value <= upper:
             raise ValueError(f"click {position} has an invalid {key}")
     if entry["repair"] not in ("lsar", "cubic", "unrepaired"):
         raise ValueError(f"click {position} has an unknown repair method")

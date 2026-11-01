@@ -37,6 +37,11 @@ def test_crossing_overlaps_channels_and_unrepaired():
     assert last["events_per_second"] == 2
     assert last["unrepaired_events"] == 1
     assert last["repaired_pct"] == 0
+    assert result["summary"]["events"] == 5
+    assert result["summary"]["unrepaired_events"] == 1
+    assert result["summary"]["repaired_pct"] == 18
+    assert result["summary"]["channels"][0]["repaired_samples"] == 400
+    assert result["summary"]["channels"][1]["repaired_samples"] == 500
     assert source == original
 
 
@@ -47,6 +52,7 @@ def test_full_stereo_coverage_is_not_over_100_percent():
 
 def test_empty_zero_and_exact_boundaries():
     assert timeline.build(built(frames=0))["buckets"] == []
+    assert timeline.build(built(frames=0))["summary"]["repaired_pct"] == 0
     rows = timeline.build(built(frames=2000), 1)["buckets"]
     assert len(rows) == 2
     assert all(r["events"] == r["repaired_pct"] == 0 for r in rows)
@@ -71,6 +77,8 @@ def test_duration_rounding_preserves_valid_endpoint():
     ("sample_rate", True), ("sample_rate", 0), ("channels", -1), ("channels", 1.5),
     ("duration_s", float("nan")), ("duration_s", float("inf")), ("duration_s", -1),
     ("clicks", {}),
+    ("duration_s", 10**400), ("duration_s", 1e308),
+    ("sample_rate", 10**400), ("channels", 10**400),
 ])
 def test_invalid_metadata(key, value):
     source = built()
@@ -83,6 +91,7 @@ def test_invalid_metadata(key, value):
     ("channel", True), ("channel", 2), ("start_sample", -1), ("end_sample", 2600),
     ("width_samples", 3), ("confidence", float("nan")), ("residual_rms", -1),
     ("repair", "unknown"),
+    ("confidence", 10**400), ("residual_rms", 10**400),
 ])
 def test_invalid_clicks(key, value):
     source = built([event(0, 2)])
@@ -91,7 +100,7 @@ def test_invalid_clicks(key, value):
         timeline.build(source)
 
 
-@pytest.mark.parametrize("seconds", [0, -1, float("nan"), float("inf"), 0.00001])
+@pytest.mark.parametrize("seconds", [0, -1, float("nan"), float("inf"), 0.00001, 10**400])
 def test_invalid_bucket_size(seconds):
     with pytest.raises(ValueError, match="bucket"):
         timeline.build(built(), seconds)
@@ -151,6 +160,11 @@ def test_cli_formats_sorting_and_no_audio_access(tmp_path, monkeypatch):
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["buckets"][0]["start_s"] == 2
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == 1
+    assert payload["shown_buckets"] == 1 and payload["total_buckets"] == 3
+    assert payload["summary"]["events"] == 1  # top coverage bucket contains no onsets
+    assert payload["summary"]["repaired_pct"] == 6
     result = runner.invoke(cli.main, [*common, "--format", "csv"])
     assert result.exit_code == 0, result.output
     rows = list(csv.DictReader(io.StringIO(result.output)))
@@ -160,6 +174,7 @@ def test_cli_formats_sorting_and_no_audio_access(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "1.000-2.000" in result.output
     assert "channel-normalized" in result.output
+    assert "Whole report: 1 events" in result.output
     assert source.read_bytes() == before
     assert list(tmp_path.iterdir()) == [source]
 
@@ -172,3 +187,23 @@ def test_bad_report_is_cli_error(tmp_path, content):
     assert result.exit_code == 1
     assert "Error:" in result.output
     assert "Traceback" not in result.output
+
+
+def test_unrepaired_ranking_uses_actual_duration_and_stable_ties():
+    source = built([event(0, 1, repair="unrepaired"),
+                    event(1000, 1001, repair="unrepaired"),
+                    event(2000, 2001, repair="unrepaired")])
+    rows = timeline.build(source, 1)["buckets"]
+    assert [r["start_s"] for r in sorted(rows, key=timeline.SORT_KEYS["unrepaired"])] == [2, 0, 1]
+
+
+@pytest.mark.parametrize("key", ["sample_rate", "duration_s", "channels"])
+def test_oversized_numbers_are_friendly_cli_errors(tmp_path, key):
+    source = built()
+    source[key] = 10**400
+    path = tmp_path / "huge.json"
+    path.write_text(json.dumps(source), encoding="utf-8")
+    result = CliRunner().invoke(cli.main, ["timeline", str(path)])
+    assert result.exit_code == 1
+    assert "Error:" in result.output
+    assert isinstance(result.exception, SystemExit)
