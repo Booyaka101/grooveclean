@@ -3,9 +3,43 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+
+
+def is_finite_number(value: object) -> bool:
+    """JSON numbers may be huge integers as well as NaN/Infinity extensions."""
+    try:
+        return type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def check_click(entry: dict, position: int, *, channels: int, frames: int) -> None:
+    """Validate editable report records before indexing audio or aggregating spans."""
+    fields = ("channel", "start_sample", "end_sample", "width_samples", "confidence",
+              "residual_rms", "repair")
+    if not isinstance(entry, dict) or any(field not in entry for field in fields):
+        raise ValueError(f"click {position} is missing fields")
+    start, end, channel = entry["start_sample"], entry["end_sample"], entry["channel"]
+    if not all(type(value) is int for value in (start, end, channel)):
+        raise ValueError(f"click {position} has a position that is not a whole number")
+    if not 0 <= channel < channels:
+        raise ValueError(f"click {position} is on channel {channel} of a {channels}-channel file")
+    if not 0 <= start < end <= frames:
+        raise ValueError(
+            f"click {position} covers samples {start} to {end}, outside the file's 0 to {frames}"
+        )
+    if type(entry["width_samples"]) is not int or entry["width_samples"] != end - start:
+        raise ValueError(f"click {position} has an invalid width_samples")
+    for key, upper in (("confidence", 1.0), ("residual_rms", math.inf)):
+        value = entry[key]
+        if not is_finite_number(value) or not 0 <= value <= upper:
+            raise ValueError(f"click {position} has an invalid {key}")
+    if entry["repair"] not in ("lsar", "cubic", "unrepaired"):
+        raise ValueError(f"click {position} has an unknown repair method")
 
 
 @dataclass(slots=True)

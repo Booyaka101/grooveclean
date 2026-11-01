@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.0 - 2026-11-01
+
+- Add `grooveclean timeline REPORT` to inspect existing reports without audio or inference.
+  Show event rates, unrepaired events, channel coverage and ranked worst sections in
+  configurable sample-aligned buckets, with text, JSON and CSV output.
+- Union overlapping repaired spans per channel and normalize coverage across channels.
+  Preserve duration-weighted whole-report totals when selecting the top buckets.
+- Rank by time, repaired coverage, event rate or unrepaired-event rate. Include a versioned
+  JSON summary and total/shown bucket counts.
+- Validate editable report fields and oversized numeric values, bound timeline allocation,
+  and document the final-bucket uncertainty inherited from millisecond-rounded reports.
+- Keep detector weights, detection decisions, audio output and source report schema unchanged.
+  Fix the detector consistency test to handle CUDA tensors as well as CPU tensors.
+
 ## 1.3.0 - 2026-10-30
 
 - Require integrated impulse evidence for each candidate event. This rejects weak stochastic

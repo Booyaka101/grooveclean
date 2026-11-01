@@ -99,7 +99,7 @@ def test_public_events_matches_cli_decision_path(detector):
     x = rng.normal(0, .005, (2, rate)).astype(np.float32)
     x[0, rate // 2] += .5
     tensor = torch.from_numpy(x)
-    probs = detector.probabilities(tensor, rate).numpy()
+    probs = detector.probabilities(tensor, rate).cpu().numpy()
     hi, lo, gate = detect.thresholds(.5, detector.calibration.hi, detector.calibration.lo)
     expected = [detect.click_spans(p, a, rate, hi, lo, gate)
                 for p, a in zip(probs, x, strict=True)]
