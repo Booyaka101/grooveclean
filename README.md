@@ -106,6 +106,36 @@ Digging the cleaned sides for breaks? [breakdig](https://github.com/Booyaka101/b
 the bars where only the drums are playing. Point it at the output folder and leave the
 difference files out: `breakdig index ./cleaned --exclude "*.removed.*"`.
 
+### Damage timeline from a report
+
+```bash
+grooveclean timeline sideA.report.json
+grooveclean timeline sideA.report.json --bucket-seconds 30 --sort coverage --top 10
+grooveclean timeline sideA.report.json --sort events --format json > timeline.json
+grooveclean timeline sideA.report.json --format csv > timeline.csv
+```
+
+This reads only the JSON report, including dry-run reports. It does not need the audio or
+difference file, load detector weights, or change the report. Buckets default to 10 seconds;
+`--sort coverage` ranks repaired coverage and `--sort events` ranks event rate, with earlier
+buckets breaking ties. `--top` limits buckets after sorting. Text and JSON include channel
+breakdowns; CSV has one row per bucket and channel. Channel numbers are zero-based.
+
+Each detected event is counted once in the bucket containing its onset, including events
+marked `unrepaired`. Event rates use the bucket's actual duration, including a shorter final
+bucket. Repaired coverage splits spans at bucket boundaries and unions overlapping spans
+within each channel. The overall percentage is the mean of the channel percentages, so fully
+repaired stereo audio is 100%, not 200%. Unrepaired events contribute no repaired coverage.
+These are reported detector events, not a guarantee of audible damage or repair quality.
+
+Existing reports round duration to milliseconds and do not store an exact frame count. The
+timeline uses the nearest nominal frame count and extends it to a reported event endpoint
+only within the rounding tolerance of 0.5 ms. Final-bucket timing and percentages inherit
+that uncertainty. Bucket sizes round to the nearest sample. More than 100,000 buckets or
+bucket/channel combinations are rejected; choose a larger bucket for very long reports.
+JSON includes the effective bucket size, reported and inferred duration, and 1 ms duration
+precision. JSON and CSV go to stdout, so redirect them to a **new** file, not the source report.
+
 ### Options
 
 | Option | Default | What it does |

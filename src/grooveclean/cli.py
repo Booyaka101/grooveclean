@@ -8,6 +8,9 @@ clear of any click, so no repaired span is ever written twice or cut in half.
 
 from __future__ import annotations
 
+import csv
+import io as text_io
+import json
 import shutil
 import sys
 import textwrap
@@ -21,7 +24,7 @@ import click
 import numpy as np
 import torch
 
-from . import __version__, detect, io, report, review
+from . import __version__, detect, io, report, review, timeline
 from .io import sidecars
 from .repair import CONTEXT, METHOD_NAMES, UNREPAIRED, repair
 
@@ -614,6 +617,56 @@ def revert(
         f"{built['totals']['count']:,} still repaired in {output.name}",
         err=True,
     )
+
+
+@main.command("timeline")
+@click.argument("report_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--bucket-seconds", default=10.0, type=float, show_default=True,
+              help="Time per bucket, rounded to the nearest sample.")
+@click.option("--sort", "order", type=click.Choice(list(timeline.SORT_KEYS)), default="time",
+              show_default=True, help="Rank by time, repaired coverage, or event rate.")
+@click.option("--top", type=click.IntRange(1), help="Show only the first N buckets after sorting.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json", "csv"]),
+              default="text", show_default=True)
+def timeline_command(report_path: Path, bucket_seconds: float, order: str,
+                     top: int | None, output_format: str) -> None:
+    """Summarize damage from REPORT_PATH without reading audio or running detection."""
+    try:
+        built = timeline.build(json.loads(report_path.read_text(encoding="utf-8")), bucket_seconds)
+    except (OSError, ValueError, TypeError) as exc:
+        raise click.ClickException(f"{report_path}: {exc}") from exc
+    rows = sorted(built["buckets"], key=timeline.SORT_KEYS[order])
+    built["buckets"] = rows[:top] if top else rows
+    built["sort"] = order
+    if output_format == "json":
+        click.echo(json.dumps(built, indent=2, allow_nan=False))
+    elif output_format == "csv":
+        output = text_io.StringIO(newline="")
+        writer = csv.writer(output, lineterminator="\n")
+        writer.writerow(["start_s", "end_s", "channel", "events", "unrepaired_events",
+                         "events_per_second", "repaired_samples", "repaired_pct"])
+        for row in built["buckets"]:
+            for ch in row["channels"]:
+                writer.writerow([row["start_s"], row["end_s"], ch["channel"], ch["events"],
+                                 ch["unrepaired_events"], ch["events_per_second"],
+                                 ch["repaired_samples"], ch["repaired_pct"]])
+        click.echo(output.getvalue(), nl=False)
+    else:
+        click.echo("Seconds              Events    /sec  Unrepaired  Repaired  "
+                   "Channels (events / repaired)")
+        for row in built["buckets"]:
+            breakdown = ", ".join(
+                f"ch{ch['channel']}: {ch['events']} / {ch['repaired_pct']:.2f}%"
+                for ch in row["channels"]
+            )
+            click.echo(
+                f"{row['start_s']:8.3f}-{row['end_s']:<8.3f} {row['events']:7d} "
+                f"{row['events_per_second']:7.2f} {row['unrepaired_events']:11d} "
+                f"{row['repaired_pct']:8.2f}%  {breakdown}"
+            )
+        if not built["buckets"]:
+            click.echo("No timeline buckets (zero-duration report).")
+        click.echo("Coverage is channel-normalized; report duration precision is 1 ms.")
 
 
 if __name__ == "__main__":
