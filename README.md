@@ -49,6 +49,13 @@ Cloning the repo and opening `docs/demo/` works too. They are MP3s because every
 play one; grooveclean itself refuses lossy input, and the encode happened after the cleaning,
 not before.
 
+## Experimental VST3 development
+
+A Windows VST3 restoration-preview prototype is under development. It uses the existing
+detector in a separate CPU worker, with buffered playback and original/cleaned/removed
+monitoring. It is not a released plugin and has not yet been qualified in DAWs.
+See [`plugin/README.md`](plugin/README.md) for build instructions and limitations.
+
 ## Install
 
 ```
@@ -241,7 +248,8 @@ Deliberately, so that what it does do can be checked:
 - No hiss or broadband noise reduction. No spectral subtraction of any kind.
 - No wow and flutter correction, no speed or pitch correction.
 - No de-hum, no EQ, no filtering of any sort applied to the output.
-- No GUI, no VST or AU plugin. It is a command line tool that processes files.
+- No released GUI, VST or AU plugin. File processing remains a command line tool;
+  the [experimental Windows VST3](plugin/README.md) is a separate development prototype.
 - No MP3, AAC, Vorbis or Opus input. Lossy encoding smears a click across the frame it sits
   in, and the codec's ringing is exactly the shape a declicker must not learn to chase.
 - No cue sheets, no track splitting, no CD burning.
@@ -329,8 +337,9 @@ them, and for a lot of records that is the right trade.
 
 Prefer grooveclean when the job is offline batch work on a stack of transfers, when the
 crackle is dense enough that a real-time algorithm has to stay conservative, or when you want
-a report and a difference file you can audit afterwards. It is slower than real time on a CPU
-and there is no plugin. The two tools are not really competing.
+a report and a difference file you can audit afterwards. Its published CPU timings are faster
+than real time, but offline throughput does not establish DAW deadline reliability. There is
+no released plugin. The two tools are not really competing.
 
 **[GTK Wave Cleaner](https://github.com/audioquality/gwc)** by Jeff Welty is the prior art for
 the repair method here. It is a GTK editor for exactly this job and it has been doing
