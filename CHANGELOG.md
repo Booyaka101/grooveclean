@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- Add an experimental Windows x64 VST3 restoration-preview plugin with a native editor,
+  sensitivity control, original/cleaned/removed monitoring and saved session settings.
+  The existing detector and LSAR repair run in a persistent CPU worker, not the audio callback.
+- Add bounded streaming with five-second host-reported latency, two-second output jobs,
+  transport-reset invalidation and visible, time-aligned original-audio fallback.
+- Add worker protocol tests, boundary-click regressions, portable stream tests, native
+  plugin/worker integration tests and a Windows VST3 build/SDK-validation workflow.
+- Support host-negotiated offline bounce with bounded backpressure, exact-result waits,
+  a reported flush tail and explicit errors instead of silent original-audio fallback.
+  Cover final partial cores, end-of-transfer clicks and failed exports in native tests.
+- Preserve tails when transport stops, keep rejected setup transactional, sanitize non-finite
+  real-time audio and cancel stalled offline workers. Capture sensitivity on the input timeline
+  and crossfade monitor/bypass switches over five milliseconds. Expand lifecycle, editor,
+  timeout and safety regressions; record review findings in `plugin/REVIEW.md`.
+- This is not a plugin release. An installer and real-DAW
+  qualification remain outstanding. See `plugin/README.md` for setup and limitations.
+
 ## 1.4.0 - 2026-11-01
 
 - Add `grooveclean timeline REPORT` to inspect existing reports without audio or inference.
