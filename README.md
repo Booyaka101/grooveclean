@@ -97,6 +97,11 @@ One file failing does not stop the run. The exit code is non-zero if any file wa
 `--skip-existing` leaves complete sets of cleaned audio, difference audio and report alone,
 which is how you carry on after stopping a long batch. With `--dry-run`, only the report is
 needed to skip a file. A survey alone never skips a later real cleaning run.
+Resume validates report fields and checks audio headers against the source's sample rate,
+channel count, frame count and bit depth. Missing, unreadable or mismatched sets are rebuilt.
+It does not hash audio or compare cleaning settings: omit `--skip-existing` to reprocess
+changed audio or use new settings. A fully completed batch does not load the detector.
+The summary separates files processed in this run, files already done and failures.
 `--format flac` writes FLAC instead of WAV, which is worth doing before you point it at a
 shelf of 96 kHz sides.
 

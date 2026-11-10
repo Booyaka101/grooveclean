@@ -223,29 +223,29 @@ def revert(pair: Pair, chosen: list[int], output: Path) -> dict:
                      (output, removed_path, report_path))
     output.parent.mkdir(parents=True, exist_ok=True)
     io.format_for(output, info)
-    with (
-        io.unlink_on_failure((output, removed_path)),
-        io.open_read(info) as clean_fh,
-        io.open_read(pair.removed) as removed_fh,
-        io.Writer(output, info) as out_fh,
-        io.Writer(removed_path, info) as rest_fh,
-    ):
-        for start in range(0, info.frames, CHUNK_FRAMES):
-            count = min(CHUNK_FRAMES, info.frames - start)
-            keep = io.read_at(clean_fh, start, count, info)
-            difference = io.read_at(removed_fh, start, count, pair.removed)
-            for i in np.flatnonzero((ends > start) & (starts < start + count)):
-                low = max(int(starts[i]), start) - start
-                high = min(int(ends[i]), start + count) - start
-                keep[low:high, channels[i]] += difference[low:high, channels[i]]
-                difference[low:high, channels[i]] = 0.0
-            out_fh.write(keep)
-            rest_fh.write(difference)
+    with io.unlink_on_failure((output, removed_path, report_path)):
+        with (
+            io.open_read(info) as clean_fh,
+            io.open_read(pair.removed) as removed_fh,
+            io.Writer(output, info) as out_fh,
+            io.Writer(removed_path, info) as rest_fh,
+        ):
+            for start in range(0, info.frames, CHUNK_FRAMES):
+                count = min(CHUNK_FRAMES, info.frames - start)
+                keep = io.read_at(clean_fh, start, count, info)
+                difference = io.read_at(removed_fh, start, count, pair.removed)
+                for i in np.flatnonzero((ends > start) & (starts < start + count)):
+                    low = max(int(starts[i]), start) - start
+                    high = min(int(ends[i]), start + count) - start
+                    keep[low:high, channels[i]] += difference[low:high, channels[i]]
+                    difference[low:high, channels[i]] = 0.0
+                out_fh.write(keep)
+                rest_fh.write(difference)
 
-    dropped = set(chosen)
-    kept = [c for i, c in enumerate(pair.clicks) if i not in dropped]
-    built = dict(pair.report, clicks=kept, totals=report.totals(kept, info.frames))
-    report.write(built, report_path)
+        dropped = set(chosen)
+        kept = [c for i, c in enumerate(pair.clicks) if i not in dropped]
+        built = dict(pair.report, clicks=kept, totals=report.totals(kept, info.frames))
+        report.write(built, report_path)
     return built
 
 

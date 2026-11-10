@@ -150,15 +150,28 @@ class Block:
 
 def check_outputs(inputs: Iterable[str | Path], outputs: Iterable[str | Path]) -> None:
     """Reject path and hard-link aliases before opening any output for writing."""
-    protected = [Path(path) for path in inputs]
-    for output in map(Path, outputs):
-        for other in protected:
-            if output.resolve() == other.resolve() or (
-                output.exists() and other.exists() and output.samefile(other)
-            ):
-                raise AudioError(f"{output}: an output is the input file or another output; "
-                                 "choose another -o")
-        protected.append(output)
+    names: set[Path] = set()
+    files: set[tuple[int, int]] = set()
+
+    def remember(path: Path, *, output: bool) -> None:
+        resolved = path.resolve()
+        identity = None
+        with suppress(FileNotFoundError):
+            stat = path.stat()
+            # Some filesystems do not expose usable inode numbers.
+            if stat.st_ino:
+                identity = (stat.st_dev, stat.st_ino)
+        if output and (resolved in names or (identity is not None and identity in files)):
+            raise AudioError(f"{path}: an output is the input file or another output; "
+                             "choose another -o")
+        names.add(resolved)
+        if identity is not None:
+            files.add(identity)
+
+    for path in inputs:
+        remember(Path(path), output=False)
+    for path in outputs:
+        remember(Path(path), output=True)
 
 
 @contextmanager
