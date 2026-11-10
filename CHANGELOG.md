@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.1 - 2026-11-10
 
 - Check the full batch output set before processing. Refuse duplicate stems, collisions
   with difference files, and output aliases to any batch input before writing any files.
