@@ -117,7 +117,7 @@ def clean_file(
     clicks: list[report.Click] = []
     emitted = 0
     # A dry run opened neither output, and they may be a previous real run's.
-    with io.unlink_on_failure(() if report_only else (dst, removed_path)):
+    with io.unlink_on_failure(() if report_only else (dst, removed_path, report_path)):
         with ExitStack() as stack:
             out_fh = None if report_only else stack.enter_context(io.Writer(dst, info))
             rem_fh = None if report_only else stack.enter_context(io.Writer(removed_path, info))
@@ -164,14 +164,14 @@ def clean_file(
                 f"{src}: wrote {emitted} of {info.frames} frames; the block seams did not line up"
             )
 
-    built = report.build(
-        input_path=str(src),
-        sample_rate=info.samplerate,
-        channels=info.channels,
-        frames=info.frames,
-        clicks=clicks,
-    )
-    report.write(built, report_path)
+        built = report.build(
+            input_path=str(src),
+            sample_rate=info.samplerate,
+            channels=info.channels,
+            frames=info.frames,
+            clicks=clicks,
+        )
+        report.write(built, report_path)
     return built
 
 
@@ -324,6 +324,37 @@ def clean(
         click.echo(f"hear what came out:  grooveclean audit {output}", err=True)
 
 
+def _batch_complete(source: Path, target: Path, *, report_only: bool) -> bool:
+    """Resume only readable output sets whose report and audio match the source metadata."""
+    removed_path, report_path = sidecars(target)
+    try:
+        built = json.loads(report_path.read_text(encoding="utf-8"))
+        if not isinstance(built, dict):
+            return False
+        info = io.probe(source)
+        if (
+            Path(built["input"]).resolve() != source.resolve()
+            or built["sample_rate"] != info.samplerate
+            or built["channels"] != info.channels
+            or built["duration_s"] != round(info.duration_s, 3)
+            or not isinstance(built["clicks"], list)
+        ):
+            return False
+        for position, entry in enumerate(built["clicks"], start=1):
+            report.check_click(entry, position, channels=info.channels, frames=info.frames)
+        if built["totals"] != report.totals(built["clicks"], info.frames):
+            return False
+        if not report_only:
+            expected = (info.samplerate, info.channels, info.frames, info.subtype)
+            for path in (target, removed_path):
+                audio = io.probe(path)
+                if (audio.samplerate, audio.channels, audio.frames, audio.subtype) != expected:
+                    return False
+        return True
+    except (io.AudioError, OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 @main.command(short_help="Declick a folder of files.")
 @click.argument("directory", type=click.Path(path_type=Path))
 @click.option(
@@ -362,7 +393,7 @@ def clean(
 @click.option(
     "--skip-existing",
     is_flag=True,
-    help="Leave files that already have a report in OUTPUT_DIR. Resumes an interrupted run.",
+    help="Skip complete output sets (or reports with --dry-run). Resumes an interrupted run.",
 )
 @click.option(
     "--format",
@@ -394,20 +425,35 @@ def batch(
     destination = Path(output_dir) if output_dir else directory / "cleaned"
     if destination.resolve() in {s.parent.resolve() for s in sources}:
         _fail(f"{destination}: would overwrite the input files, choose another -o")
-    destination.mkdir(parents=True, exist_ok=True)
-
+    targets = [destination / f"{source.stem}.{extension.lower()}" for source in sources]
     try:
-        detector = _detector(device, str(weights) if weights else None)
-    except detect.DetectorError as exc:
-        _fail(str(exc))
+        # Plan the entire set before writing: different source extensions can share a stem,
+        # and one file's cleaned output can be another file's difference output.
+        io.check_outputs(
+            sources, (path for target in targets for path in (target, *sidecars(target)))
+        )
+    except (io.AudioError, OSError) as exc:
+        _fail(f"batch output conflict: {exc}. Rename conflicting sources or choose another -o")
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        _fail(f"{destination}: could not create the output directory ({exc})")
 
-    failed = 0
-    for index, source in enumerate(sources, start=1):
-        target = destination / f"{source.stem}.{extension.lower()}"
+    detector = None
+    failed = skipped = processed = 0
+    for index, (source, target) in enumerate(zip(sources, targets, strict=True), start=1):
         prefix = f"[{index}/{len(sources)}] {source.name}"
-        if skip_existing and sidecars(target)[1].exists():
+        if skip_existing and _batch_complete(source, target, report_only=dry_run):
+            skipped += 1
             click.echo(f"{prefix}: already done", err=True)
             continue
+        if detector is None:
+            try:
+                detector = _detector(device, str(weights) if weights else None)
+            except detect.DetectorError as exc:
+                _fail(str(exc))
+            except OUT_OF_MEMORY:
+                _fail("ran out of memory loading the detector; try --device cpu or free memory")
         try:
             started = time.perf_counter()
             built = clean_file(
@@ -423,13 +469,19 @@ def batch(
             click.echo(_wrap(f"{prefix}: skipped, {exc}", "  "), err=True)
             continue
         totals = built["totals"]
+        processed += 1
         click.echo(
             f"{prefix}: {totals['count']:,} clicks "
             f"({totals['pct_of_duration']:.2f}%) in {_elapsed(time.perf_counter() - started)}",
             err=True,
         )
     verb = "surveyed" if dry_run else "cleaned"
-    click.echo(f"{len(sources) - failed} of {len(sources)} {verb} into {destination}", err=True)
+    summary = f"{processed} of {len(sources)} {verb} into {destination}"
+    if skipped:
+        summary += f"; {skipped} already done"
+    if failed:
+        summary += f"; {failed} failed"
+    click.echo(summary, err=True)
     if failed:
         sys.exit(1)
 

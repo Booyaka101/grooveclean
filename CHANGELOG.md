@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.1 - 2026-11-10
+
+- Check the full batch output set before processing. Refuse duplicate stems, collisions
+  with difference files, and output aliases to any batch input before writing any files.
+- Make `batch --skip-existing` require both audio files and the report for a real run.
+  Report-only surveys still resume from reports, but no longer skip later audio cleaning.
+- Report batch destination creation failures as command-line errors instead of tracebacks.
+- Validate report fields, source metadata and both audio headers before resuming, rebuilding
+  missing, unreadable or mismatched sets instead of silently skipping them.
+- Load the batch detector only when processing is needed, handle startup memory failures,
+  and distinguish newly processed, already-complete and failed files in the summary.
+- Use linear path/inode indexing for output preflight rather than pairwise filesystem checks.
+- Replace reports atomically and include report emission in clean/revert failure cleanup, so
+  failed writes cannot leave a truncated survey or an apparently complete new audio set.
+
 ## 1.4.0 - 2026-11-01
 
 - Add `grooveclean timeline REPORT` to inspect existing reports without audio or inference.

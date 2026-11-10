@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import math
+import tempfile
 from collections.abc import Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -94,4 +96,17 @@ def build(
 
 
 def write(report: dict, path: str | Path) -> None:
-    Path(path).write_text(json.dumps(report, indent=2), encoding="utf-8")
+    path = Path(path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent,
+            prefix=f".{path.name}.", suffix=".tmp", delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(json.dumps(report, indent=2))
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            with suppress(OSError):
+                temporary.unlink(missing_ok=True)

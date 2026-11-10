@@ -341,7 +341,8 @@ def test_skip_existing_resumes_a_batch(run, transfers, tmp_path):
 
     result = run("batch", source_dir, "-o", done, "--skip-existing")
     assert result.exit_code == 0, result.output
-    assert result.output.count("already done") == 2
+    assert result.output.count(": already done") == 2
+    assert "0 of 2 cleaned" in result.output and "2 already done" in result.output
     assert (done / "mono_44k_16.wav").stat().st_mtime_ns == first
 
 
