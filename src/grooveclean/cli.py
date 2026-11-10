@@ -362,7 +362,7 @@ def clean(
 @click.option(
     "--skip-existing",
     is_flag=True,
-    help="Leave files that already have a report in OUTPUT_DIR. Resumes an interrupted run.",
+    help="Skip complete output sets (or reports with --dry-run). Resumes an interrupted run.",
 )
 @click.option(
     "--format",
@@ -394,7 +394,19 @@ def batch(
     destination = Path(output_dir) if output_dir else directory / "cleaned"
     if destination.resolve() in {s.parent.resolve() for s in sources}:
         _fail(f"{destination}: would overwrite the input files, choose another -o")
-    destination.mkdir(parents=True, exist_ok=True)
+    targets = [destination / f"{source.stem}.{extension.lower()}" for source in sources]
+    try:
+        # Plan the entire set before writing: different source extensions can share a stem,
+        # and one file's cleaned output can be another file's difference output.
+        io.check_outputs(
+            sources, (path for target in targets for path in (target, *sidecars(target)))
+        )
+    except (io.AudioError, OSError) as exc:
+        _fail(f"batch output conflict: {exc}. Rename conflicting sources or choose another -o")
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        _fail(f"{destination}: could not create the output directory ({exc})")
 
     try:
         detector = _detector(device, str(weights) if weights else None)
@@ -402,10 +414,13 @@ def batch(
         _fail(str(exc))
 
     failed = 0
-    for index, source in enumerate(sources, start=1):
-        target = destination / f"{source.stem}.{extension.lower()}"
+    for index, (source, target) in enumerate(zip(sources, targets, strict=True), start=1):
         prefix = f"[{index}/{len(sources)}] {source.name}"
-        if skip_existing and sidecars(target)[1].exists():
+        removed_path, report_path = sidecars(target)
+        complete = report_path.is_file() and (
+            dry_run or (target.is_file() and removed_path.is_file())
+        )
+        if skip_existing and complete:
             click.echo(f"{prefix}: already done", err=True)
             continue
         try:

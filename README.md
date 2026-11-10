@@ -94,9 +94,15 @@ grooveclean batch ./transfers -o ./cleaned
 ![grooveclean cleaning a folder of four 78 sides](https://raw.githubusercontent.com/Booyaka101/grooveclean/main/docs/shot-batch.png)
 
 One file failing does not stop the run. The exit code is non-zero if any file was skipped.
-`--skip-existing` leaves anything that already has a report in the output folder alone, which
-is how you carry on after stopping a long batch. `--format flac` writes FLAC instead of WAV,
-which is worth doing before you point it at a shelf of 96 kHz sides.
+`--skip-existing` leaves complete sets of cleaned audio, difference audio and report alone,
+which is how you carry on after stopping a long batch. With `--dry-run`, only the report is
+needed to skip a file. A survey alone never skips a later real cleaning run.
+`--format flac` writes FLAC instead of WAV, which is worth doing before you point it at a
+shelf of 96 kHz sides.
+
+Batch checks all output names before writing anything. If two inputs share a stem, such as
+`side.wav` and `side.flac`, rename one first. The same applies to names such as `side.wav`
+and `side.removed.wav`, where one cleaned file would overwrite another's difference file.
 
 The output format follows the extension you ask for. `-o sideA.flac` writes FLAC, and the
 difference file and report sit beside it. Sample rate, channel count and bit depth always
@@ -150,7 +156,7 @@ JSON and CSV go to stdout, so redirect them to a **new** file, not the source re
 | `--device` | `auto` | `cuda`, `cpu`, or `auto`. Asking for `cuda` without a GPU warns and uses the CPU. |
 | `--dry-run` | off | Write only the report. Survey a stack of transfers without spending the disk. |
 | `--weights` | bundled | Point at your own trained detector. |
-| `--skip-existing` | off | `batch` only. Leave files that already have a report in the output folder. |
+| `--skip-existing` | off | `batch` only. Leave complete output sets alone; with `--dry-run`, a report is enough. |
 | `--format` | `wav` | `batch` only. Container for the cleaned files: `wav`, `flac`, `aiff`, `w64`, `caf` or `rf64`. |
 
 Sensitivity is the knob to reach for first. If quiet passages come out with holes in them,
